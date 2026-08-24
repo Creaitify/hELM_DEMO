@@ -1,0 +1,99 @@
+/* ============================================================
+   HELM canonical token layer.
+   CSS custom properties are the single source of truth.
+   Tailwind utilities consume these; nothing re-declares a value.
+   ============================================================ */
+
+:root {
+  /* ---- Public dark world ---- */
+  --night-950: #070a12;
+  --night-900: #0b0e1a;
+  --night-800: #131829;
+  --night-700: #1d2438;
+  --night-line: rgba(255, 255, 255, 0.1);
+  --night-line-strong: rgba(255, 255, 255, 0.18);
+  --night-ink: #f2f4f8;
+  --night-muted: #a7aec0;
+  --night-faint: #6e7688;
+
+  /* ---- Product light world ----
+     Near-neutral paper with a trace of cool. Cards are pure white so the
+     one saturated accent does the talking rather than a tinted ground. */
+  --canvas: #ecedf2;
+  --surface: #ffffff;
+  --surface-subtle: #f6f7fa;
+  --surface-sunk: #eef0f5;
+  --line: #e2e4ec;
+  --line-strong: #c6cad8;
+  --ink-950: #10131c;
+  --ink-700: #343b4b;
+  --ink-500: #656d80;
+  --ink-400: #8b92a3;
+
+  /* ---- Brand and action ---- */
+  --helm-50: #f1f3ff;
+  --helm-500: #2f43c9;
+  --helm-600: #22318f;
+  --helm-100: #dee4fb;
+  --iris-500: #7c5bff;
+  --action-200: #ffddd0;
+  --action-400: #f7aa8e;
+  --action-ink: #10131c;
+
+  /* ---- Semantic ---- */
+  --good: #0a7f59;
+  --good-soft: #e7f3ee;
+  --warn: #a4620f;
+  --warn-soft: #faf1e3;
+  --bad: #c31f3c;
+  --bad-soft: #fbe9ed;
+  --info: #2f43c9;
+  --info-soft: #eff1fe;
+
+  /* ---- Provider identity (marks and identity details only) ---- */
+  --google: #4285f4;
+  --google-red: #ea4335;
+  --google-yellow: #fbbc04;
+  --google-green: #34a853;
+  --meta: #0866ff;
+
+  /* ---- Focus ---- */
+  --focus-ring: rgba(47, 67, 201, 0.40);
+  --focus-ring-dark: rgba(160, 184, 255, 0.55);
+
+  /* ---- Geometry ---- */
+  --rail-w: 220px;
+  --rail-w-collapsed: 70px;
+  --scope-h: 62px;
+  --marketing-header-h: 68px;
+
+  /* ---- Easing ---- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- Duration scale ---- */
+  --t-press: 110ms;
+  --t-tooltip: 160ms;
+  --t-popover: 210ms;
+  --t-sheet: 280ms;
+  --t-swap: 220ms;
+  --t-chart: 760ms;
+
+  /* ---- Type roles ---- */
+  --font-display: var(--font-sans);
+}
+
+/* Legacy token aliases. Kept so any earlier stylesheet or component
+   that referenced the pre-consolidation names still resolves to the
+   canonical value instead of drifting. */
+:root {
+  --helm-navy: var(--night-950);
+  --helm-indigo: var(--helm-500);
+  --helm-indigo-strong: var(--helm-600);
+  --helm-peach: var(--action-200);
+  --helm-sand: var(--canvas);
+  --helm-paper: var(--surface);
+  --helm-hairline: var(--line);
+  --helm-text: var(--ink-950);
+  --helm-text-muted: var(--ink-500);
+}

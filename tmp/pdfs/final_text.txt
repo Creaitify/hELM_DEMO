@@ -1,0 +1,542 @@
+      HELM
+
+
+
+GOOGLE ADS + META ADS / PRODUCT OVERVIEW
+
+
+
+
+The decision layer
+for paid media.
+A comprehensive product overview for
+marketing and performance teams.
+
+
+    SEE WHAT MOVED. KNOW WHAT TO MOVE NEXT.
+
+
+
+
+ILLUSTRATIVE PRODUCT ENVIRONMENT
+
+Screens use fictional sample data and do not represent customer results.
+EXECUTIVE PROMISE
+
+
+
+
+See what moved.
+Know what to move next.
+HELM is paid-media intelligence for brands, agencies and performance teams
+managing Google Ads and Meta Ads across one or many accounts. It sits between
+platform reporting and the person responsible for where the next unit of budget
+goes.
+
+
+    01   ONE DECISION CONTEXT                   02   EVIDENCE BESIDE ASSERTION                  03   HUMAN CONTROL
+    Workspace, account scope, period,           Every finding carries a basis, source, caveat   Recommendations are bounded proposals.
+    comparison, freshness and currency remain   and path back to the numbers.                   Review and decision remain explicit.
+    visible.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                                                                                  02 / 21
+THE OPERATING PROBLEM
+
+
+
+
+Paid media has no shortage of dashboards. It has a
+decision problem.
+Google Ads and Meta Ads describe performance through different event definitions, attribution windows, account structures and
+reporting rhythms. The hard part is deciding which movement matters, whether the comparison is valid and what action is
+proportionate.
+
+
+    01   Fragmented truth                        02   Context risk                                         03   Decision gap
+    The same commercial outcome can be           Currency, timezone, freshness and attribution             Reporting often stops before evidence, risk,
+    represented differently by each platform.    can invalidate a convenient roll-up.                      ownership and the next step are explicit.
+
+
+
+
+The HELM response                                                                                SCOPE + MOVEMENT + BASIS + EVIDENCE + PROPOSED NEXT STEP
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                                                                                                   03 / 21
+OPERATING GRAMMAR
+
+
+
+
+HELM makes the decision trail visible.
+The product follows one disciplined sequence from source truth to a reviewable decision.
+
+
+
+
+    01   Signal                       02   Discrepancy                   03      Evidence      04   Recommendation     05   Human decision
+    Preserve provider                 Surface differences in             Attach the exact      Propose a bounded       Approve, revise, save
+    identity, account                 definition, freshness              window, comparison,   action with             or dismiss. Nothing is
+    hierarchy and source              and compatibility.                 formula, source and   assumptions, risk and   executed automatically
+    values.                                                              exclusions.           stop conditions.        in the experience
+                                                                                                                       shown.
+
+
+
+
+This sequence is both the product model and the visual logic of the interface.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                                                                                         04 / 21
+CONNECTED DECISION CONTEXT
+
+
+
+Every account enters the same                                                                                         The Northstar sample workspace keeps platform
+
+decision context.
+                                                                                                                      identity, account scope, period, currency, freshness
+                                                                                                                      and exclusions visible around the recommendation.
+
+
+
+
+        01
+
+
+                                                      02
+                                                                                                                                 03
+
+
+
+
+                                                                                                                                           04
+
+
+
+
+ 01 Account scope and data quality   02 Complete reporting window                   03 Cross-channel reconciliation                04 Bounded recommendation
+
+
+HELM / PRODUCT OVERVIEW                                     ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                          05 / 21
+PRODUCT SURFACE
+
+
+
+From morning brief to durable decision record.
+HELM keeps daily triage, cross-channel exploration, investigation and decision artifacts inside one operating system.
+
+
+
+
+  CAMPAIGNS                                            INTELLIGENCE                                                  LIBRARY
+
+
+
+
+Briefing                        Campaigns                       Investigate                               Decision             Library
+TRIAGE                          EXPLORE                         EXPLAIN                                   REVIEW               REMEMBER
+
+
+
+
+HELM / PRODUCT OVERVIEW                                      ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                            06 / 21
+ONE MONEY VIEW
+
+
+
+The platforms can disagree. Your
+decision still cannot.
+Provider-reported values remain inspectable. HELM maps only compatible purchase events
+to a common illustrative 7-day-click basis, publishes freshness and exclusions, and declines
+invalid blended totals.
+
+
+
+       GOOGLE ADS READS                                          META ADS READS                                                HELM MAPPED VIEW
+
+
+
+
+    1,356                                                      1,104                                                         2,268
+    Primary Purchase / provider view                           Purchase / provider view                                      Purchases / common basis
+
+
+
+
+    VISIBLE BASIS
+
+    INR / Asia-Kolkata / 25 Jul - 23 Aug 2026 / current partial day excluded / delayed and incompatible accounts separated
+
+
+
+
+HELM / PRODUCT OVERVIEW                                              ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                  07 / 21
+MORNING BRIEFING
+
+
+
+A brief built around what deserves                                                                          One scoreline, visible caveats and a decision-first
+                                                                                                            hierarchy replace the usual wall of disconnected KPI
+attention.                                                                                                  cards.
+
+
+
+
+                                              1                                                         2                                  3
+
+
+
+
+                                      4
+
+
+
+
+01 Scope + freshness      02 Definitions + deltas                          03 Unavailable is explicit                   04 Partial data disclosed first
+
+
+HELM / PRODUCT OVERVIEW                             ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                          08 / 21
+PERFORMANCE MOVEMENT
+
+
+
+Movement becomes a narrative, not another
+chart.
+Material changes are annotated directly on the series, placing budget shifts, creative refreshes, rising frequency and capacity constraints beside the movement they
+help explain.
+
+
+
+
+   29 JUL                                     04 AUG                                         11 AUG                                 17 AUG
+
+   Creative refresh                           Budget raised 40%                              Frequency crossed 4.0                  High Intent budget constraint
+
+HELM / PRODUCT OVERVIEW                                           ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                    09 / 21
+ILLUSTRATIVE DECISION STORY / WHAT CHANGED
+
+
+
+A budget increase met a tired creative.
+The decision does not come from one metric. HELM connects delivery, efficiency, creative repetition and available capacity across the selected accounts.
+
+
+
+
+   DAILY BUDGET                              CPA MOVEMENT                             FREQUENCY
+
+
+   +40%                                      +31%                                     3.2 to 4.8
+   Broad 04 / 4 Aug                          ₹1,869 to ₹2,449                         Creative repetition
+
+
+
+
+   Creative signal                                              Capacity signal
+   The leading creative's 3-second view rate fell               Google High Intent held a ₹1,733 CPA while losing
+   from 32% to 24% as frequency climbed.                        18% of eligible impressions to budget.
+
+
+
+                                                                                                                       Comparison basis
+                                                                                                                       25 Jul - 23 Aug 2026 versus the previous 30
+                                                                                                                       complete days.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                            ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                 10 / 21
+ILLUSTRATIVE DECISION STORY / PROPOSED ACTION
+
+
+
+HELM proposes a test - not a verdict.
+Shift up to ₹1,20,000 from Meta Prospecting / Broad 04 into Google Non-Brand / High Intent for 14 days.
+
+
+
+
+         PROPOSED / NOT EXECUTED
+
+
+
+
+      Meta Prospecting / Broad 04                                                                                 Google Non-Brand / High Intent
+
+      CAP                                                                      HORIZON                                                         MODELLED RANGE
+
+
+      ₹1,20,000                                                                14 days                                                         ₹42k - ₹68k
+
+
+Named stop conditions
+
+    High Intent CPA exceeds ₹1,900 on a 3-day rolling basis.                       Impression share lost to budget falls below 4% before the          Blended purchases fall more than 8% against the trailing
+                                                                                   cap is reached.                                                    two weeks.
+
+
+
+
+Modelled sample output, not a forecast or guarantee. View-through effects, saturation past the cap and revenue impact are excluded.
+
+
+HELM / PRODUCT OVERVIEW                                                                   ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                                      11 / 21
+INVESTIGATIONS
+
+
+
+Begin with intent,
+not a blank
+prompt.
+The investigation surface inherits
+workspace, account scope, range,
+comparison and freshness before work
+begins.
+
+NAMED RUN STAGES
+
+
+
+   Queued
+
+
+   Collecting evidence
+
+
+   Analyzing
+
+
+   Reviewing
+
+
+   Waiting for decision
+
+
+   Complete
+
+
+
+
+HELM / PRODUCT OVERVIEW                ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA   12 / 21
+DECISION ANATOMY
+
+
+
+An opinion is useful only when it can be
+checked.
+HELM separates observation, evidence and recommendation so every step can be inspected and challenged.
+
+
+
+
+    01    Finding                                  02   Evidence                                     03   Recommendation
+    A precise observation, financial exposure,     Reported or derived values, metric definition,   Affected campaigns, rationale, expected
+    source accounts, time window, comparison,      disclosed formula, source account, freshness,    direction or range, assumptions, risk, urgency,
+    evidence class, confidence and caveats.        exclusions and a chart or table.                 effort, stop conditions and review state.
+
+
+
+
+   OBSERVED                                       CALCULATED                                        INFERRED
+
+   Directly present in source data.               Derived through a disclosed formula.              A judgment drawn from several signals.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                                                                                               13 / 21
+METRIC INTEGRITY
+
+
+
+HELM refuses the convenient wrong answer.
+A decision layer earns trust by naming what a metric is, where it came from and what it cannot support.
+
+
+   CPA                    Media cost per mapped purchase; not automatically customer          Conversion basis   Google and Meta events remain inspectable before a mapped view is
+                          acquisition cost.                                                                      shown.
+
+
+
+
+   Attributed value       Platform-reported conversion value; not audited revenue.            Derived metrics    Every formula is disclosed, including 3-second view rate and hold
+                                                                                                                 rate.
+
+
+
+
+   Clicks                 Link clicks and all clicks remain distinct definitions.             Currency           Cross-currency totals remain unavailable without a named
+                                                                                                                 conversion basis.
+
+
+
+
+   Reach                  A people-oriented estimate; not interchangeable with impressions.   Availability       Unsupported values are shown as Not available, never estimated.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                                                                                                                              14 / 21
+CAMPAIGN AND CREATIVE INTELLIGENCE
+
+
+
+Media and creative belong in the same line of
+sight.
+The explorer moves from a cross-channel portfolio view into a durable campaign record. Creative repetition, view behavior, spend share and cost per purchase stay
+connected to commercial consequence.
+
+
+
+
+  PORTFOLIO VIEW                                                                                                     CAMPAIGN VIEW
+
+
+
+
+   Cross-channel explorer                                    Durable campaign record                                   Creative consequence
+   Search, platform, status, level and sortable              Overview, Ads & Creative and Intelligence                 Frequency and view behavior are interpreted
+   commercial metrics.                                       remain linked to one campaign.                            alongside spend and CPA.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                          ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                   15 / 21
+CONNECTIONS
+
+
+
+Read what matters. Change nothing by default.
+Identity, readable data, account selection, health and freshness are explicit. Provider access and operational controls remain separate decisions.
+
+
+
+
+  01    Readable capabilities                 02   Explicit non-permissions                     03    Health + freshness             04   Disconnect is not deletion
+
+
+
+HELM / PRODUCT OVERVIEW                                               ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                16 / 21
+TEAM AND WORKSPACE
+
+
+
+One workspace.
+Clear
+responsibility.
+Membership, invitations and governance
+remain separate from daily media work. The
+interface represents four clear roles.
+
+
+
+
+   Owner            Workspace control
+
+
+
+   Admin            Membership + configuration
+
+
+
+   Analyst          Analysis + investigation
+
+
+
+   Viewer           Read access
+
+
+
+
+  Pending invitations remain visible
+  until accepted or withdrawn.
+
+
+
+
+HELM / PRODUCT OVERVIEW                          ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA   17 / 21
+SECURITY AND ACCESS
+
+
+
+
+   PRODUCTION CONTROL NOTE
+   The screenshot presents the intended access model. Live identity and provider authorization are part of the production integration scope.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                          ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA             18 / 21
+WHY THIS FITS A MARKETING COMPANY
+
+
+
+Built for the rhythm of an agency team.
+HELM turns the daily sequence from observation to client-ready decision into one shared operating rhythm.
+
+
+
+
+01                             02                                    03                                   04                                    05
+
+Performance lead               Analyst                               Creative strategist                  Account lead / CMO                    Workspace owner
+Open the Briefing              Investigate                           Translate                            Decide                                Govern
+See what deserves action.      Check movement, basis and             Turn fatigue into the next test.     Review assumptions, risk and range.   Keep access, connections and audit
+                               evidence.                                                                                                        clear.
+
+
+
+
+     The operational result         Less context rebuilding, more consistent client narratives and a clearer handoff from observation to action.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                                                                                                                         19 / 21
+CURRENT PRODUCT SCOPE
+
+
+
+A complete product experience,
+with a clear path to live operations.
+
+     DEMONSTRATED INTERFACE                                                                                   PRODUCTION INTEGRATION
+
+
+
+       Responsive public and authenticated product experience                                                   Identity sessions and provider authorization callbacks
+
+
+       Briefing, Campaigns, Intelligence, Library and Settings                                                  Live Google Ads and Meta Ads synchronization
+
+
+       Google and Meta multi-account scenarios                                                                  Backend workspace authorization and persistent storage
+
+
+       Partial, stale, incompatible and unavailable data states                                                 Persistent decisions, reports, exports and audit
+
+
+       Reviewable findings, evidence and recommendation states                                                  Any campaign mutation or execution capability
+
+
+
+
+   Demonstration disclosure
+
+   The screens in this document show HELM's current interface using an illustrative Northstar Group workspace. Account names, IDs, dates, campaign events and performance figures are sample data.
+   Live authentication, platform authorization, data synchronization, persistence and campaign execution are not part of the current build.
+
+
+
+
+HELM / PRODUCT OVERVIEW                                                    ILLUSTRATIVE SAMPLE WORKSPACE / NOT CUSTOMER DATA                                                                    20 / 21
+HELM   See what moved. Know what to move next.
+
