@@ -1,4 +1,17 @@
-const { chromium } = require('C:/Users/prach/AppData/Local/npm-cache/_npx/e41f203b7505f1fb/node_modules/playwright');
+const path = require('node:path');
+
+/**
+ * Playwright resolves from the frontend install, and the output directory is
+ * relative to this file, so the script runs on any machine that checked the
+ * repo out — the earlier version hardcoded both to one developer's laptop.
+ */
+const BASE = process.env.HELM_BASE_URL || 'http://127.0.0.1:3000';
+
+const PLAYWRIGHT = require.resolve('playwright', {
+  paths: [path.join(__dirname, '../../frontend')],
+});
+
+const { chromium } = require(PLAYWRIGHT);
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
@@ -8,10 +21,21 @@ async function main() {
     colorScheme: 'light',
   });
   const page = await context.newPage();
-  await page.goto('file:///C:/Users/prach/HELM103/Helm103/design/AgentFleet.dc.html');
-  await page.waitForTimeout(800);
+  // The design mockup this used to open has been superseded by the real
+  // workflow surface, so capture a completed run instead.
+  const workspace = process.env.HELM_WORKSPACE || 'northstar-group';
+  const api = process.env.HELM_API_ORIGIN || 'http://127.0.0.1:8000';
+  const response = await fetch(`${api}/api/workspaces/${workspace}/intelligence`);
+  const { runs } = await response.json();
+  const run = runs.find((entry) => entry.stage === 'complete') || runs[0];
+  if (!run) throw new Error('No runs to capture — start one first.');
+
+  await page.goto(`${BASE}/w/${workspace}/intelligence/${run.id}`);
+  await page.waitForSelector('h1');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(600);
   await page.screenshot({
-    path: 'C:/Users/prach/helm-final/tmp/pdfs/captures/agent-fleet.png',
+    path: path.join(__dirname, 'captures', 'agent-fleet.png'),
     fullPage: true,
   });
   await browser.close();

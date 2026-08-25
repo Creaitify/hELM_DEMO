@@ -1,0 +1,563 @@
+import { graph } from './index.js';
+import { decryptSecret, encryptSecret } from '../auth/crypto.js';
+import type {
+  AccountGroup,
+  AccountScope,
+  AdAccount,
+  Artifact,
+  AuditEntry,
+  CampaignSummary,
+  Connection,
+  CreativeSummary,
+  Decision,
+  Evidence,
+  Finding,
+  IntelligenceRun,
+  Member,
+  Recommendation,
+  Role,
+  SessionUser,
+  TimelineEvent,
+  Workspace,
+  AgentInvocation,
+} from '../domain/types.js';
+
+/**
+ * Domain reads and writes over the decision graph.
+ *
+ * Everything above this layer speaks in HELM entities. Nothing above it knows
+ * whether the graph is Neo4j or the in-process store.
+ */
+
+/* ------------------------------------------------------------- identity -- */
+
+export type StoredUser = SessionUser & { createdAt: string };
+
+export async function upsertUser(user: SessionUser): Promise<StoredUser> {
+  const existing = await graph().getNode<StoredUser>('User', user.id);
+  const record: StoredUser = {
+    ...user,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+  };
+  await graph().upsertNode('User', user.id, record as unknown as Record<string, unknown>);
+  return record;
+}
+
+export async function getUser(id: string): Promise<StoredUser | null> {
+  return graph().getNode<StoredUser>('User', id);
+}
+
+export async function findUserByEmail(email: string): Promise<StoredUser | null> {
+  const users = await graph().listNodes<StoredUser>('User', { email: email.toLowerCase() });
+  return users[0] ?? null;
+}
+
+export async function setMembership(userId: string, workspaceId: string, role: Role, status: Member['status'] = 'active') {
+  await graph().relate({
+    fromLabel: 'User',
+    fromId: userId,
+    type: 'MEMBER_OF',
+    toLabel: 'Workspace',
+    toId: workspaceId,
+    props: { role, status, since: new Date().toISOString() },
+  });
+}
+
+export async function removeMembership(userId: string, workspaceId: string) {
+  await graph().unrelate({
+    fromLabel: 'User',
+    fromId: userId,
+    type: 'MEMBER_OF',
+    toLabel: 'Workspace',
+    toId: workspaceId,
+  });
+}
+
+export async function membershipRole(userId: string, workspaceId: string): Promise<Role | null> {
+  const props = await graph().relationProps({
+    fromLabel: 'User',
+    fromId: userId,
+    type: 'MEMBER_OF',
+    toLabel: 'Workspace',
+    toId: workspaceId,
+  });
+  const role = props?.role;
+  return typeof role === 'string' ? (role as Role) : null;
+}
+
+/** A workspace as it is stored: the caller's role is resolved per request. */
+type StoredWorkspace = Omit<Workspace, 'role'> & {
+  /** Set when the workspace was provisioned from a work email domain. */
+  domain?: string;
+};
+
+export async function listWorkspacesForUser(userId: string): Promise<Workspace[]> {
+  const nodes = await graph().neighbours<StoredWorkspace>('User', userId, 'MEMBER_OF', 'Workspace');
+  const out: Workspace[] = [];
+  for (const node of nodes) {
+    const role = (await membershipRole(userId, node.id)) ?? 'viewer';
+    out.push({ ...node, role });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getWorkspaceBySlug(slug: string): Promise<StoredWorkspace | null> {
+  const found = await graph().listNodes<StoredWorkspace>('Workspace', { slug });
+  return found[0] ?? null;
+}
+
+export async function upsertWorkspace(workspace: StoredWorkspace) {
+  await graph().upsertNode('Workspace', workspace.id, workspace as unknown as Record<string, unknown>);
+  return workspace;
+}
+
+/** Used by domain auto-join, so colleagues land in the workspace that exists. */
+export async function findWorkspaceByDomain(domain: string): Promise<StoredWorkspace | null> {
+  const found = await graph().listNodes<StoredWorkspace>('Workspace', { domain: domain.toLowerCase() });
+  return found[0] ?? null;
+}
+
+export async function listMembers(workspaceId: string): Promise<Member[]> {
+  const users = await graph().inbound<StoredUser>('Workspace', workspaceId, 'MEMBER_OF', 'User');
+  const out: Member[] = [];
+  for (const user of users) {
+    const props = await graph().relationProps({
+      fromLabel: 'User',
+      fromId: user.id,
+      type: 'MEMBER_OF',
+      toLabel: 'Workspace',
+      toId: workspaceId,
+    });
+    out.push({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: (props?.role as Role) ?? 'viewer',
+      status: (props?.status as Member['status']) ?? 'active',
+      lastActive: (props?.lastActive as string) ?? (props?.since as string) ?? user.createdAt,
+    });
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------- connections -- */
+
+export async function listConnections(workspaceId: string): Promise<Connection[]> {
+  const rows = await graph().neighbours<Connection>('Workspace', workspaceId, 'HAS_CONNECTION', 'Connection');
+  const order = { google_ads: 0, meta_ads: 1, upload: 2 } as const;
+  return rows.sort((a, b) => order[a.provider] - order[b.provider]);
+}
+
+export async function getConnection(id: string): Promise<Connection | null> {
+  return graph().getNode<Connection>('Connection', id);
+}
+
+export async function upsertConnection(workspaceId: string, connection: Connection) {
+  await graph().upsertNode('Connection', connection.id, connection as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Workspace',
+    fromId: workspaceId,
+    type: 'HAS_CONNECTION',
+    toLabel: 'Connection',
+    toId: connection.id,
+  });
+  return connection;
+}
+
+export type OAuthGrant = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  scope?: string;
+  accountIdentity?: string;
+};
+
+/**
+ * Provider tokens live only here, keyed to the connection, never in a cookie.
+ * They are encrypted at rest and decrypted for the length of one call.
+ */
+export async function storeGrant(connectionId: string, grant: OAuthGrant) {
+  const id = `grant_${connectionId}`;
+  await graph().upsertNode('OAuthGrant', id, {
+    ...grant,
+    accessToken: encryptSecret(grant.accessToken),
+    refreshToken: grant.refreshToken ? encryptSecret(grant.refreshToken) : undefined,
+    connectionId,
+    updatedAt: new Date().toISOString(),
+  });
+  await graph().relate({
+    fromLabel: 'Connection',
+    fromId: connectionId,
+    type: 'GRANTED',
+    toLabel: 'OAuthGrant',
+    toId: id,
+  });
+}
+
+export async function readGrant(connectionId: string): Promise<OAuthGrant | null> {
+  const stored = await graph().getNode<OAuthGrant>('OAuthGrant', `grant_${connectionId}`);
+  if (!stored) return null;
+  return {
+    ...stored,
+    accessToken: decryptSecret(stored.accessToken),
+    refreshToken: stored.refreshToken ? decryptSecret(stored.refreshToken) : undefined,
+  };
+}
+
+export async function deleteGrant(connectionId: string) {
+  await graph().deleteNode('OAuthGrant', `grant_${connectionId}`);
+}
+
+/* -------------------------------------------------------------- accounts -- */
+
+export async function listAccounts(workspaceId: string): Promise<AdAccount[]> {
+  const connections = await listConnections(workspaceId);
+  const out: AdAccount[] = [];
+  for (const connection of connections) {
+    const accounts = await graph().neighbours<AdAccount>('Connection', connection.id, 'PROVIDES', 'AdAccount');
+    out.push(...accounts);
+  }
+  return out;
+}
+
+export async function upsertAccount(account: AdAccount) {
+  await graph().upsertNode('AdAccount', account.id, account as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Connection',
+    fromId: account.connectionId,
+    type: 'PROVIDES',
+    toLabel: 'AdAccount',
+    toId: account.id,
+  });
+  return account;
+}
+
+export async function deleteAccount(id: string) {
+  await graph().deleteNode('AdAccount', id);
+}
+
+export async function listScopes(workspaceId: string): Promise<AccountScope[]> {
+  return graph().neighbours<AccountScope>('Workspace', workspaceId, 'IN_SCOPE', 'Scope');
+}
+
+export async function upsertScope(workspaceId: string, scope: AccountScope) {
+  await graph().upsertNode('Scope', scope.id, scope as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Workspace',
+    fromId: workspaceId,
+    type: 'IN_SCOPE',
+    toLabel: 'Scope',
+    toId: scope.id,
+  });
+  return scope;
+}
+
+export async function listGroups(workspaceId: string): Promise<AccountGroup[]> {
+  return graph().neighbours<AccountGroup>('Workspace', workspaceId, 'GROUPS', 'AccountGroup');
+}
+
+export async function upsertGroup(workspaceId: string, group: AccountGroup) {
+  await graph().upsertNode('AccountGroup', group.id, group as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Workspace',
+    fromId: workspaceId,
+    type: 'GROUPS',
+    toLabel: 'AccountGroup',
+    toId: group.id,
+  });
+  return group;
+}
+
+export async function deleteGroup(id: string) {
+  await graph().deleteNode('AccountGroup', id);
+}
+
+/* ------------------------------------------------------------- campaigns -- */
+
+export async function listCampaigns(workspaceId: string): Promise<CampaignSummary[]> {
+  const accounts = await listAccounts(workspaceId);
+  const out: CampaignSummary[] = [];
+  for (const account of accounts) {
+    const campaigns = await graph().neighbours<CampaignSummary>(
+      'AdAccount',
+      account.id,
+      'RUNS_CAMPAIGN',
+      'Campaign',
+    );
+    out.push(...campaigns);
+  }
+  return out;
+}
+
+export async function upsertCampaign(campaign: CampaignSummary) {
+  await graph().upsertNode('Campaign', campaign.id, campaign as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'AdAccount',
+    fromId: campaign.accountId,
+    type: 'RUNS_CAMPAIGN',
+    toLabel: 'Campaign',
+    toId: campaign.id,
+  });
+  return campaign;
+}
+
+export async function listCreatives(workspaceId: string, campaignId?: string): Promise<CreativeSummary[]> {
+  if (campaignId) {
+    return graph().neighbours<CreativeSummary>('Campaign', campaignId, 'HAS_CREATIVE', 'Creative');
+  }
+  const campaigns = await listCampaigns(workspaceId);
+  const out: CreativeSummary[] = [];
+  for (const campaign of campaigns) {
+    out.push(
+      ...(await graph().neighbours<CreativeSummary>('Campaign', campaign.id, 'HAS_CREATIVE', 'Creative')),
+    );
+  }
+  return out;
+}
+
+export async function upsertCreative(creative: CreativeSummary) {
+  await graph().upsertNode('Creative', creative.id, creative as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Campaign',
+    fromId: creative.campaignId,
+    type: 'HAS_CREATIVE',
+    toLabel: 'Creative',
+    toId: creative.id,
+  });
+  return creative;
+}
+
+/* ---------------------------------------------------------- intelligence -- */
+
+export async function upsertRun(workspaceId: string, run: IntelligenceRun) {
+  await graph().upsertNode('Run', run.id, run as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Run',
+    fromId: run.id,
+    type: 'IN_WORKSPACE',
+    toLabel: 'Workspace',
+    toId: workspaceId,
+  });
+  return run;
+}
+
+export async function getRun(id: string): Promise<IntelligenceRun | null> {
+  return graph().getNode<IntelligenceRun>('Run', id);
+}
+
+export async function listRuns(workspaceId: string): Promise<IntelligenceRun[]> {
+  const runs = await graph().inbound<IntelligenceRun>('Workspace', workspaceId, 'IN_WORKSPACE', 'Run');
+  return runs.sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+}
+
+export async function upsertInvocation(invocation: AgentInvocation) {
+  await graph().upsertNode('Invocation', invocation.id, invocation as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Run',
+    fromId: invocation.runId,
+    type: 'INVOKED',
+    toLabel: 'Invocation',
+    toId: invocation.id,
+  });
+  return invocation;
+}
+
+export async function listInvocations(runId?: string): Promise<AgentInvocation[]> {
+  const rows = runId
+    ? await graph().neighbours<AgentInvocation>('Run', runId, 'INVOKED', 'Invocation')
+    : await graph().listNodes<AgentInvocation>('Invocation');
+  return rows.sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+}
+
+export async function upsertFinding(runId: string, finding: Finding) {
+  await graph().upsertNode('Finding', finding.id, finding as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Run',
+    fromId: runId,
+    type: 'PRODUCED',
+    toLabel: 'Finding',
+    toId: finding.id,
+  });
+  for (const evidenceId of finding.evidenceIds) {
+    await graph().relate({
+      fromLabel: 'Finding',
+      fromId: finding.id,
+      type: 'SUPPORTED_BY',
+      toLabel: 'Evidence',
+      toId: evidenceId,
+    });
+  }
+  for (const campaignId of finding.affectedCampaignIds) {
+    await graph().relate({
+      fromLabel: 'Finding',
+      fromId: finding.id,
+      type: 'ABOUT_CAMPAIGN',
+      toLabel: 'Campaign',
+      toId: campaignId,
+    });
+  }
+  for (const accountId of finding.sourceAccountIds) {
+    await graph().relate({
+      fromLabel: 'Finding',
+      fromId: finding.id,
+      type: 'ABOUT_ACCOUNT',
+      toLabel: 'AdAccount',
+      toId: accountId,
+    });
+  }
+  return finding;
+}
+
+export async function getFinding(id: string) {
+  return graph().getNode<Finding>('Finding', id);
+}
+
+export async function listFindings(workspaceId: string): Promise<Finding[]> {
+  const runs = await listRuns(workspaceId);
+  const seen = new Map<string, Finding>();
+  for (const run of runs) {
+    const findings = await graph().neighbours<Finding>('Run', run.id, 'PRODUCED', 'Finding');
+    for (const finding of findings) seen.set(finding.id, finding);
+  }
+  const order = { decision: 0, watch: 1, stable: 2 } as const;
+  return [...seen.values()].sort((a, b) => order[a.severity] - order[b.severity]);
+}
+
+export async function upsertEvidence(evidence: Evidence) {
+  await graph().upsertNode('Evidence', evidence.id, evidence as unknown as Record<string, unknown>);
+  return evidence;
+}
+
+export async function getEvidence(id: string) {
+  return graph().getNode<Evidence>('Evidence', id);
+}
+
+export async function listEvidence(): Promise<Evidence[]> {
+  return graph().listNodes<Evidence>('Evidence');
+}
+
+export async function upsertRecommendation(recommendation: Recommendation) {
+  await graph().upsertNode(
+    'Recommendation',
+    recommendation.id,
+    recommendation as unknown as Record<string, unknown>,
+  );
+  await graph().relate({
+    fromLabel: 'Finding',
+    fromId: recommendation.findingId,
+    type: 'SUGGESTS',
+    toLabel: 'Recommendation',
+    toId: recommendation.id,
+  });
+  return recommendation;
+}
+
+export async function getRecommendation(id: string) {
+  return graph().getNode<Recommendation>('Recommendation', id);
+}
+
+export async function listRecommendations(findingId?: string): Promise<Recommendation[]> {
+  if (findingId) {
+    return graph().neighbours<Recommendation>('Finding', findingId, 'SUGGESTS', 'Recommendation');
+  }
+  return graph().listNodes<Recommendation>('Recommendation');
+}
+
+export async function recordDecision(decision: Decision) {
+  await graph().upsertNode('Decision', decision.id, decision as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Recommendation',
+    fromId: decision.recommendationId,
+    type: 'DECIDED',
+    toLabel: 'Decision',
+    toId: decision.id,
+  });
+  return decision;
+}
+
+export async function listDecisions(runId?: string): Promise<Decision[]> {
+  const all = await graph().listNodes<Decision>('Decision');
+  return runId ? all.filter((decision) => decision.runId === runId) : all;
+}
+
+/* ---------------------------------------------------------------- library -- */
+
+export async function upsertArtifact(workspaceId: string, artifact: Artifact) {
+  await graph().upsertNode('Artifact', artifact.id, artifact as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Workspace',
+    fromId: workspaceId,
+    type: 'BUILT',
+    toLabel: 'Artifact',
+    toId: artifact.id,
+  });
+  if (artifact.linkedRunId) {
+    await graph().relate({
+      fromLabel: 'Artifact',
+      fromId: artifact.id,
+      type: 'DERIVED_FROM',
+      toLabel: 'Run',
+      toId: artifact.linkedRunId,
+    });
+  }
+  if (artifact.linkedCampaignId) {
+    await graph().relate({
+      fromLabel: 'Artifact',
+      fromId: artifact.id,
+      type: 'ABOUT_CAMPAIGN',
+      toLabel: 'Campaign',
+      toId: artifact.linkedCampaignId,
+    });
+  }
+  return artifact;
+}
+
+export async function listArtifacts(workspaceId: string, mode?: 'reports' | 'creative'): Promise<Artifact[]> {
+  const rows = await graph().neighbours<Artifact>('Workspace', workspaceId, 'BUILT', 'Artifact');
+  const filtered = mode ? rows.filter((artifact) => artifact.mode === mode) : rows;
+  return filtered.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+}
+
+export async function getArtifact(id: string) {
+  return graph().getNode<Artifact>('Artifact', id);
+}
+
+export async function deleteArtifact(id: string) {
+  await graph().deleteNode('Artifact', id);
+}
+
+/* ------------------------------------------------------- audit + history -- */
+
+export async function recordAudit(workspaceId: string, entry: AuditEntry) {
+  await graph().upsertNode('AuditEntry', entry.id, entry as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Workspace',
+    fromId: workspaceId,
+    type: 'RECORDED',
+    toLabel: 'AuditEntry',
+    toId: entry.id,
+  });
+  return entry;
+}
+
+export async function listAudit(workspaceId: string): Promise<AuditEntry[]> {
+  const rows = await graph().neighbours<AuditEntry>('Workspace', workspaceId, 'RECORDED', 'AuditEntry');
+  return rows.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 200);
+}
+
+export async function upsertTimelineEvent(workspaceId: string, event: TimelineEvent) {
+  await graph().upsertNode('TimelineEvent', event.id, event as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Workspace',
+    fromId: workspaceId,
+    type: 'RECORDED',
+    toLabel: 'TimelineEvent',
+    toId: event.id,
+  });
+  return event;
+}
+
+export async function listTimeline(workspaceId: string): Promise<TimelineEvent[]> {
+  const rows = await graph().neighbours<TimelineEvent>('Workspace', workspaceId, 'RECORDED', 'TimelineEvent');
+  return rows.sort((a, b) => (a.at < b.at ? 1 : -1));
+}

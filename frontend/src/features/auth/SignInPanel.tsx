@@ -7,6 +7,7 @@ import { HelmWordmark } from '@/components/brand/HelmMark';
 import { Button } from '@/components/primitives/Button';
 import { GoogleGMark, IconAlert, IconArrowRight, IconLock } from '@/components/icons';
 import { authScenarios, type AuthViewState } from '@/services/mock/public-content';
+import { api, describeError } from '@/lib/api';
 import { describeReturnTo } from '@/lib/safe-return';
 import { routes } from '@/lib/routes';
 import { WORKSPACE_SLUG } from '@/services/mock/constants';
@@ -15,25 +16,64 @@ import { cn } from '@/lib/cn';
 /**
  * Identity authentication only. Signing in never connects an ad account.
  *
- * In this build the AuthAdapter boundary is visual: pressing Continue with
- * Google moves through the redirecting state and lands on the sample
- * workspace so the product can be reviewed end to end.
+ * Live and demo identity sit behind one interface. With a Google client
+ * configured, the button hands off to Google's consent screen and the API sets
+ * the session cookie on the way back. Without one, the same button signs the
+ * sample identity in through the API so the product is reviewable end to end —
+ * and says which of the two it is doing.
  */
 export function SignInPanel({
   returnTo,
   initialState = 'ready',
+  googleConfigured = false,
+  buttonLabel = 'Continue with Google',
+  apiReachable = true,
+  authEnabled = true,
+  initialError,
 }: {
   returnTo: string;
   initialState?: AuthViewState;
+  /** True once GOOGLE_CLIENT_ID and secret are configured on the API. */
+  googleConfigured?: boolean;
+  buttonLabel?: string;
+  apiReachable?: boolean;
+  /** False while the deployment has sign-in switched off entirely. */
+  authEnabled?: boolean;
+  /** A failure carried back on the callback's query string. */
+  initialError?: string;
 }) {
   const router = useRouter();
-  const [state, setState] = useState<AuthViewState>(initialState);
+  const [state, setState] = useState<AuthViewState>(initialError ? 'failed' : initialState);
+  const [problem, setProblem] = useState<string | null>(initialError ?? null);
   const scenario = authScenarios[state];
   const destinationLabel = describeReturnTo(returnTo);
 
   const start = () => {
     setState('redirecting');
-    window.setTimeout(() => router.push(returnTo || routes.briefing(WORKSPACE_SLUG)), 620);
+    setProblem(null);
+
+    // Without a reachable API there is nothing to authenticate against; the
+    // sample workspace is still worth reviewing, so go straight there.
+    if (!apiReachable) {
+      window.setTimeout(() => router.push(returnTo || routes.briefing(WORKSPACE_SLUG)), 620);
+      return;
+    }
+
+    if (googleConfigured) {
+      window.location.href = `/api/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`;
+      return;
+    }
+
+    void (async () => {
+      try {
+        await api.post('/api/auth/demo');
+        router.push(returnTo || routes.briefing(WORKSPACE_SLUG));
+        router.refresh();
+      } catch (error) {
+        setProblem(describeError(error));
+        setState('failed');
+      }
+    })();
   };
 
   return (
@@ -86,16 +126,16 @@ export function SignInPanel({
             pending={state === 'redirecting'}
             pendingLabel="Opening Google…"
             leading={<GoogleGMark size={19} />}
-            aria-label="Continue with Google"
+            aria-label={buttonLabel}
           >
-            Continue with Google
+            {buttonLabel}
           </Button>
         )}
       </div>
 
       {/* Errors are announced, not just coloured. */}
       <div aria-live="polite" aria-atomic="true" className="min-h-[24px]">
-        {state === 'failed' && scenario.message ? (
+        {state === 'failed' && (problem ?? scenario.message) ? (
           <p
             className={cn(
               'mt-3 flex items-start gap-2 rounded-control border border-bad/25 bg-bad-soft px-3 py-2.5 text-[13.5px] leading-[20px] text-ink-950',
@@ -105,7 +145,7 @@ export function SignInPanel({
               <IconAlert size={16} />
             </span>
             <span>
-              {scenario.message}{' '}
+              {problem ?? scenario.message}{' '}
               <button
                 type="button"
                 onClick={start}
@@ -124,6 +164,19 @@ export function SignInPanel({
         </span>
         Signing in does not connect an ad account. You choose what HELM can read after entry.
       </p>
+
+      {!authEnabled ? (
+        <p className="mono mt-3 text-[11.5px] leading-[17px] text-ink-400">
+          Sign-in is switched off for this deployment (AUTH_ENABLED=false), so the workspace opens
+          directly. Set AUTH_ENABLED=true to require an identity.
+        </p>
+      ) : !googleConfigured ? (
+        <p className="mono mt-3 text-[11.5px] leading-[17px] text-ink-400">
+          {apiReachable
+            ? 'No Google client is configured, so this signs you into the sample workspace through the HELM API. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to switch to live Google sign-in.'
+            : 'The HELM API is not reachable, so this opens the sample workspace directly.'}
+        </p>
+      ) : null}
 
       <div className="mt-10 border-t border-line pt-5">
         <Link

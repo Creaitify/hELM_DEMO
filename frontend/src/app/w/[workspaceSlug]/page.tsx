@@ -8,10 +8,12 @@ import { InlineNotice, SectionHeading } from '@/components/primitives/States';
 import { StatusBadge } from '@/components/primitives/Status';
 import { DecisionBrief } from '@/features/briefing/DecisionBrief';
 import { PerformanceMovement } from '@/features/briefing/PerformanceMovement';
-import { IconArrowRight, IconDownload, IconShare, ProviderMark } from '@/components/icons';
+import { IconArrowRight, IconShare, ProviderMark } from '@/components/icons';
 import { LinkButton } from '@/components/primitives/Button';
+import { DownloadMenu } from '@/features/intelligence/DownloadMenu';
 import { routes } from '@/lib/routes';
 import { formatDateRange, formatMoney, formatRelative } from '@/lib/format';
+import { getBriefing, getWorkspace } from '@/services/http/queries';
 import {
   COMPARE_END,
   COMPARE_START,
@@ -19,20 +21,18 @@ import {
   NOW_ISO,
   WINDOW_END,
   WINDOW_START,
-  accounts,
-  blendedCampaigns,
-  channelContribution,
-  creatives,
-  decisionFindings,
-  evidence,
+  accounts as sampleAccounts,
+  blendedCampaigns as sampleCampaigns,
+  channelContribution as sampleContribution,
+  creatives as sampleCreatives,
+  evidence as sampleEvidence,
+  findings as sampleFindings,
   partialNotice,
   recommendations,
-  scoreline,
+  scoreline as sampleScoreline,
   seriesByMetric,
-  stableFindings,
-  timeline,
+  timeline as sampleTimeline,
   unavailableMetric,
-  watchFindings,
 } from '@/services/mock';
 
 export const metadata: Metadata = { title: 'Briefing' };
@@ -46,6 +46,26 @@ export default async function BriefingPage({
   if (!isPopulated(workspaceSlug)) {
     return <WorkspacePlaceholder slug={workspaceSlug} title="Briefing" section="briefing" />;
   }
+
+  // The graph is the source of truth for what is on the account right now;
+  // the derived series stay with the fixtures until MetricDay is populated.
+  const [live, workspaceRead] = await Promise.all([
+    getBriefing(workspaceSlug),
+    getWorkspace(workspaceSlug),
+  ]);
+
+  const scoreline = live.ok ? live.data.scoreline : sampleScoreline;
+  const channelContribution = live.ok ? live.data.channelContribution : sampleContribution;
+  const blendedCampaigns = live.ok ? live.data.campaigns : sampleCampaigns;
+  const timeline = live.ok ? live.data.timeline : sampleTimeline;
+  const accounts = workspaceRead.ok ? workspaceRead.data.accounts : sampleAccounts;
+  const findings = live.ok && live.data.findings.length ? live.data.findings : sampleFindings;
+  const evidence = sampleEvidence;
+  const creatives = sampleCreatives;
+
+  const decisionFindings = findings.filter((finding) => finding.severity === 'decision');
+  const watchFindings = findings.filter((finding) => finding.severity === 'watch');
+  const stableFindings = findings.filter((finding) => finding.severity === 'stable');
 
   const windowLabel = formatDateRange(WINDOW_START, WINDOW_END);
 
@@ -69,14 +89,15 @@ export default async function BriefingPage({
       }
       actions={
         <>
-          <LinkButton
-            href={routes.library(workspaceSlug)}
-            variant="quiet"
-            size="compact"
-            leading={<IconDownload size={16} />}
-          >
-            Export snapshot
-          </LinkButton>
+          <DownloadMenu
+            href={`/api/workspaces/${workspaceSlug}/briefing/export`}
+            label="Export snapshot"
+            formats={[
+              { format: 'csv', label: 'CSV', hint: 'Campaign rows for a spreadsheet' },
+              { format: 'md', label: 'Markdown', hint: 'The findings, as text' },
+              { format: 'json', label: 'JSON', hint: 'The whole snapshot' },
+            ]}
+          />
           <LinkButton
             href={routes.run(workspaceSlug, 'run_0824_cpa')}
             variant="neutral"

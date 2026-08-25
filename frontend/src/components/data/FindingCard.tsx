@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { Evidence, Finding, Recommendation } from '@/contracts';
 import { Button } from '@/components/primitives/Button';
 import { ConfidenceMarker, DeltaChip, KindMarker, StatusBadge } from '@/components/primitives/Status';
-import { IconEvidence, IconIntelligence, ProviderMark } from '@/components/icons';
+import { IconEvidence, IconIntelligence, IconLock, ProviderMark } from '@/components/icons';
 import { deltaSemantic, formatMetric, metricLabel } from '@/lib/metrics';
 import { formatDelta, formatDateRange, formatMoneyContract } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -156,6 +156,7 @@ export function RecommendationPanel({
   onSave,
   onDismiss,
   decisionState,
+  canApprove = true,
 }: {
   recommendation: Recommendation;
   onApprove: () => void;
@@ -163,6 +164,8 @@ export function RecommendationPanel({
   onSave: () => void;
   onDismiss: () => void;
   decisionState: 'proposed' | 'approved' | 'revision_requested' | 'dismissed' | 'saved';
+  /** Approval is an admin or owner permission. Viewers still read the proposal. */
+  canApprove?: boolean;
 }) {
   return (
     <div className="s-panel overflow-hidden p-0">
@@ -255,18 +258,28 @@ export function RecommendationPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-subtle px-5 py-4">
-        <Button variant="action" onClick={onApprove} disabled={decisionState === 'approved'}>
-          Approve recommendation
-        </Button>
-        <Button variant="neutral" size="compact" onClick={onRevise}>
-          Request revision
-        </Button>
-        <Button variant="quiet" size="compact" onClick={onSave}>
-          Save for later
-        </Button>
-        <Button variant="quiet" size="compact" onClick={onDismiss} className="ml-auto text-ink-500">
-          Dismiss
-        </Button>
+        {canApprove ? (
+          <>
+            <Button variant="action" onClick={onApprove} disabled={decisionState === 'approved'}>
+              Approve recommendation
+            </Button>
+            <Button variant="neutral" size="compact" onClick={onRevise}>
+              Request revision
+            </Button>
+            <Button variant="quiet" size="compact" onClick={onSave}>
+              Save for later
+            </Button>
+            <Button variant="quiet" size="compact" onClick={onDismiss} className="ml-auto text-ink-500">
+              Dismiss
+            </Button>
+          </>
+        ) : (
+          <p className="flex items-center gap-2 text-[13px] text-ink-500">
+            <IconLock size={15} />
+            Approving a recommendation needs the admin or owner role. You can still read the proposal and
+            its evidence.
+          </p>
+        )}
       </div>
     </div>
   );

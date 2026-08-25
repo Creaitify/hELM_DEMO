@@ -8,17 +8,57 @@ import type { Money } from '@/contracts';
 
 export const DEFAULT_LOCALE = 'en-IN';
 
+/**
+ * Compact values are scaled here rather than by Intl.
+ *
+ * `notation: 'compact'` reads CLDR, and Node's bundled ICU disagrees with the
+ * browser's — 2,268 becomes "2K" on the server and "2T" in Chromium, and
+ * ₹3,00,000 becomes "₹3L" against "₹3.0L". Either one breaks hydration, and
+ * "2T" is a unit no Indian reader uses. Scaling by hand keeps both runtimes on
+ * the same string and keeps the units the ones the workspace counts in.
+ */
+const INDIAN_SCALE = [
+  { at: 1e7, suffix: 'Cr' },
+  { at: 1e5, suffix: 'L' },
+  { at: 1e3, suffix: 'K' },
+] as const;
+
+const WESTERN_SCALE = [
+  { at: 1e9, suffix: 'B' },
+  { at: 1e6, suffix: 'M' },
+  { at: 1e3, suffix: 'K' },
+] as const;
+
+type ScaleStep = { at: number; suffix: string };
+
+/** The largest scale step this value reaches, or null if it stays as written. */
+function scaleFor(value: number, locale: string): ScaleStep | null {
+  const scale = locale.toLowerCase().endsWith('-in') ? INDIAN_SCALE : WESTERN_SCALE;
+  const magnitude = Math.abs(value);
+  return scale.find((step) => magnitude >= step.at) ?? null;
+}
+
+function compactNumber(value: number, locale: string): string {
+  const step = scaleFor(value, locale);
+  if (!step) return String(Math.round(value));
+
+  const scaled = value / step.at;
+  // One decimal below 100, none above, so the column stays narrow.
+  const digits = Math.abs(scaled) < 100 ? 1 : 0;
+  return `${Number(scaled.toFixed(digits))}${step.suffix}`;
+}
+
 const currencyCache = new Map<string, Intl.NumberFormat>();
 
-function currencyFormatter(currency: string, locale: string, compact: boolean) {
-  const key = `${locale}|${currency}|${compact}`;
+function currencyFormatter(currency: string, locale: string, digits: number) {
+  const key = `${locale}|${currency}|${digits}`;
   const cached = currencyCache.get(key);
   if (cached) return cached;
   const formatter = new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
-    notation: compact ? 'compact' : 'standard',
-    maximumFractionDigits: compact ? 1 : 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
   });
   currencyCache.set(key, formatter);
   return formatter;
@@ -31,7 +71,21 @@ export function formatMoney(
 ): string {
   if (value === null || value === undefined || Number.isNaN(value)) return 'Not available';
   const { locale = DEFAULT_LOCALE, compact = false } = options;
-  return currencyFormatter(currency, locale, compact).format(value);
+
+  if (!compact) return currencyFormatter(currency, locale, 0).format(value);
+
+  // Scale first, then format the scaled number in standard notation. Going
+  // through Intl's own compact notation makes the output depend on whichever
+  // CLDR the runtime bundles, and Node's disagrees with the browser's about
+  // the trailing zero: ₹3L on the server against ₹3.0L in Chromium.
+  const step = scaleFor(value, locale);
+  if (!step) return currencyFormatter(currency, locale, 0).format(value);
+
+  const scaled = value / step.at;
+  const digits = Math.abs(scaled) < 100 ? 1 : 0;
+  // Collapsing the trailing zero in JS keeps both runtimes on the same string.
+  const rounded = Number(scaled.toFixed(digits));
+  return `${currencyFormatter(currency, locale, digits).format(rounded)}${step.suffix}`;
 }
 
 export function formatMoneyContract(money: Money, locale = DEFAULT_LOCALE, compact = false): string {
@@ -45,10 +99,8 @@ export function formatNumber(
 ): string {
   if (value === null || value === undefined || Number.isNaN(value)) return 'Not available';
   const { locale = DEFAULT_LOCALE, compact = false, maximumFractionDigits = 0 } = options;
-  return new Intl.NumberFormat(locale, {
-    notation: compact ? 'compact' : 'standard',
-    maximumFractionDigits,
-  }).format(value);
+  if (compact) return compactNumber(value, locale);
+  return new Intl.NumberFormat(locale, { maximumFractionDigits }).format(value);
 }
 
 /** Ratios arrive as 0–1 unless the contract says otherwise. */

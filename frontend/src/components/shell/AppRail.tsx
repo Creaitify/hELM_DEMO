@@ -13,8 +13,10 @@ import {
   IconConnection,
   IconIntelligence,
   IconLibrary,
+  IconEvidence,
   IconRail,
   IconSettings,
+  IconSpark,
   IconTeam,
   IconUser,
   IconWarning,
@@ -36,9 +38,15 @@ type RailLink = {
   dot?: 'warn' | 'good';
 };
 
+type RailGroup = { label: string | null; links: RailLink[] };
+
 /**
- * Two groups. Analysis first, then the workspace itself. Ops, model providers
- * and billing stay out of the rail — they are not day-to-day destinations.
+ * Four groups, in the order somebody actually works.
+ *
+ * Analysis first, then the things they make, then the people, then the
+ * platform. Data Sources is deliberately absent: a connector is reached
+ * through Integrations, and a raw table of sources is not a destination
+ * anybody navigates to on purpose.
  */
 export function AppRail({
   workspace,
@@ -60,37 +68,61 @@ export function AppRail({
   const [collapsed, setCollapsed] = useState(false);
   const currentTab = searchParams.get('tab');
 
-  const primary: RailLink[] = [
-    { href: routes.briefing(workspace.slug), label: 'Briefing', icon: IconBriefing, exact: true },
-    { href: routes.campaigns(workspace.slug), label: 'Campaigns', icon: IconCampaigns },
+  const groups: RailGroup[] = [
     {
-      href: routes.intelligence(workspace.slug),
-      label: 'Intelligence',
-      icon: IconIntelligence,
-      count: decisionCount,
+      label: null,
+      links: [
+        { href: routes.briefing(workspace.slug), label: 'Briefing', icon: IconBriefing, exact: true },
+        { href: routes.campaigns(workspace.slug), label: 'Campaigns', icon: IconCampaigns },
+        {
+          href: routes.intelligence(workspace.slug),
+          label: 'Agent Fleet',
+          icon: IconIntelligence,
+          count: decisionCount,
+        },
+      ],
     },
-    { href: routes.library(workspace.slug), label: 'Library', icon: IconLibrary },
-  ];
-
-  const secondary: RailLink[] = [
     {
-      href: routes.connections(workspace.slug),
-      label: 'Connections',
-      icon: IconConnection,
-      dot: attentionCount > 0 ? 'warn' : 'good',
+      label: 'Create',
+      links: [
+        { href: routes.studio(workspace.slug), label: 'Studio', icon: IconSpark },
+        { href: routes.library(workspace.slug), label: 'Asset Library', icon: IconLibrary, exact: true },
+        { href: routes.library(workspace.slug, { tab: 'reports' }), label: 'Documents', icon: IconEvidence, tab: 'reports' },
+      ],
     },
-    { href: routes.settings(workspace.slug, 'team'), label: 'Team', icon: IconTeam, tab: 'team' },
-    { href: routes.settings(workspace.slug, 'audit'), label: 'Audit', icon: IconAudit, tab: 'audit' },
-    { href: routes.settings(workspace.slug), label: 'Settings', icon: IconSettings },
+    {
+      label: 'Organization',
+      links: [
+        { href: routes.settings(workspace.slug, 'team'), label: 'Team', icon: IconTeam, tab: 'team' },
+        { href: routes.settings(workspace.slug, 'audit'), label: 'Activity', icon: IconAudit, tab: 'audit' },
+      ],
+    },
+    {
+      label: 'Platform',
+      links: [
+        {
+          href: routes.connections(workspace.slug),
+          label: 'Integrations',
+          icon: IconConnection,
+          dot: attentionCount > 0 ? 'warn' : 'good',
+        },
+        { href: routes.settings(workspace.slug), label: 'Settings', icon: IconSettings },
+      ],
+    },
   ];
 
   const isActive = (link: RailLink) => {
     const base = link.href.split('?')[0];
     const onPath = link.exact ? pathname === base : pathname.startsWith(base);
     if (!onPath) return false;
-    // Settings hosts Team and Audit, so the tab decides which row lights up.
+    // Settings hosts Team and Activity, and the Library hosts Assets and
+    // Documents, so in both cases the tab decides which row lights up.
     if (base.endsWith('/settings')) {
       return link.tab ? currentTab === link.tab : currentTab !== 'team' && currentTab !== 'audit';
+    }
+    if (base.endsWith('/library')) {
+      if (pathname.startsWith(`${base}/studio`)) return false;
+      return link.tab ? currentTab === link.tab : currentTab !== 'reports';
     }
     return true;
   };
@@ -227,16 +259,20 @@ export function AppRail({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2.5 py-3" aria-label="Primary">
-        <ul className="space-y-px">{primary.map(renderLink)}</ul>
-
-        <div className={cn('mt-5', collapsed && 'mt-4')}>
-          {!collapsed ? (
-            <p className="mono px-3 pb-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">Workspace</p>
-          ) : (
-            <div className="mx-auto mb-3 h-px w-6 bg-line" aria-hidden="true" />
-          )}
-          <ul className="space-y-px">{secondary.map(renderLink)}</ul>
-        </div>
+        {groups.map((group, index) => (
+          <div key={group.label ?? 'primary'} className={cn(index > 0 && (collapsed ? 'mt-4' : 'mt-5'))}>
+            {group.label ? (
+              collapsed ? (
+                <div className="mx-auto mb-3 h-px w-6 bg-line" aria-hidden="true" />
+              ) : (
+                <p className="mono px-3 pb-1.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">
+                  {group.label}
+                </p>
+              )
+            ) : null}
+            <ul className="space-y-px">{group.links.map(renderLink)}</ul>
+          </div>
+        ))}
       </nav>
 
       <div className="border-t border-line p-2.5">

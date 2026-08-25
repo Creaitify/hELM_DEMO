@@ -100,3 +100,18 @@
   .anim-mist { display: none !important; }
   .anim-working { opacity: 1 !important; }
 }
+
+/* A signal travelling down the workflow connector while a node is working.
+   Meaning, not decoration: it appears only on the active edge. */
+@keyframes helm-signal {
+  0%   { transform: translateY(-14px); opacity: 0; }
+  25%  { opacity: 0.9; }
+  75%  { opacity: 0.9; }
+  100% { transform: translateY(120%); opacity: 0; }
+}
+
+.anim-signal { animation: helm-signal 1800ms var(--ease-standard) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-signal { animation: none; opacity: 0.6; }
+}

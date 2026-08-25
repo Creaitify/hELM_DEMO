@@ -3,6 +3,8 @@
    Feature components consume these, never raw network shapes.
    ============================================================ */
 
+import type { WorkflowNode } from './fleet';
+
 export type ProviderKey = 'google_ads' | 'meta_ads' | 'upload';
 export type AdProviderKey = Exclude<ProviderKey, 'upload'>;
 
@@ -266,13 +268,21 @@ export type Recommendation = {
   status: 'proposed' | 'approved' | 'revision_requested' | 'dismissed';
 };
 
+/**
+ * The stages of the HELM workflow, in order.
+ *
+ * These are the real steps a run passes through, not a progress bar: each one
+ * maps to exactly one node the interface draws.
+ */
 export type RunStage =
   | 'queued'
-  | 'collecting_evidence'
+  | 'collecting_data'
   | 'analyzing'
-  | 'reviewing'
-  | 'waiting_for_decision'
-  | 'building_artifact'
+  | 'reviewing_analysis'
+  | 'creating'
+  | 'reviewing_creative'
+  | 'waiting_for_approval'
+  | 'generating_images'
   | 'complete'
   | 'cancelled'
   | 'blocked'
@@ -288,6 +298,10 @@ export type RunStageRecord = {
 
 export type IntelligenceRun = {
   id: string;
+  /** Present on runs read from the API; sample fixtures omit it. */
+  workspaceSlug?: string;
+  /** The eight workflow nodes, in order, with their live state. */
+  workflow?: WorkflowNode[];
   title: string;
   intent: string;
   stage: RunStage;
@@ -322,7 +336,8 @@ export type Artifact = {
     | 'export'
     | 'creative_direction'
     | 'creative_variant'
-    | 'copy_set';
+    | 'copy_set'
+    | 'generated_image';
   mode: 'reports' | 'creative';
   updatedAt: string;
   createdBy: string;
@@ -332,6 +347,11 @@ export type Artifact = {
   summary: string;
   format?: string;
   tags: string[];
+  /** A served asset path for generated creative. Never inline bytes. */
+  imageUrl?: string;
+  aspect?: string;
+  /** The prompt that produced a generated image, kept for provenance. */
+  prompt?: string;
 };
 
 export type ConnectorCapability =
@@ -373,6 +393,8 @@ export type Connection = {
   nextSyncAt: string | null;
   grantedReads: string[];
   message?: string;
+  /** True when the connection was created through a real provider OAuth grant. */
+  live?: boolean;
 };
 
 export type AccountGroup = {

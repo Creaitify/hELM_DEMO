@@ -51,6 +51,7 @@ export const routes = {
   intelligence: (slug: string, q?: AnalyticQuery) => `/w/${slug}/intelligence${qs(q)}`,
   run: (slug: string, id: string, q?: AnalyticQuery) => `/w/${slug}/intelligence/${id}${qs(q)}`,
   library: (slug: string, q?: AnalyticQuery) => `/w/${slug}/library${qs(q)}`,
+  studio: (slug: string, q?: AnalyticQuery) => `/w/${slug}/library/studio${qs(q)}`,
   settings: (slug: string, tab?: string) => `/w/${slug}/settings${tab ? `?tab=${tab}` : ''}`,
   connections: (slug: string) => `/w/${slug}/connections`,
 } as const;

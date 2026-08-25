@@ -1,41 +1,46 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { CampaignSummary, IntelligenceRun } from '@/contracts';
 import { Checkbox, Disclosure } from '@/components/primitives/Controls';
 import { StatusBadge } from '@/components/primitives/Status';
 import { SectionHeading } from '@/components/primitives/States';
-import { IconArrowRight, IconIntelligence, ProviderMark } from '@/components/icons';
-import { INTENTS } from '@/services/mock/intelligence';
+import { IconArrowRight, IconIntelligence, IconLock, ProviderMark } from '@/components/icons';
+import { api, describeError } from '@/lib/api';
 import { formatRelative } from '@/lib/format';
 import { routes } from '@/lib/routes';
 import { cn } from '@/lib/cn';
 
 const STAGE_TONE: Record<string, 'good' | 'warn' | 'bad' | 'info' | 'neutral'> = {
-  complete: 'good',
-  waiting_for_decision: 'warn',
-  analyzing: 'info',
-  collecting_evidence: 'info',
-  reviewing: 'info',
   queued: 'neutral',
+  collecting_data: 'info',
+  analyzing: 'info',
+  reviewing_analysis: 'info',
+  creating: 'info',
+  reviewing_creative: 'info',
+  waiting_for_approval: 'warn',
+  generating_images: 'info',
+  complete: 'good',
   blocked: 'bad',
   failed: 'bad',
   cancelled: 'neutral',
-  building_artifact: 'info',
 };
 
 const STAGE_LABEL: Record<string, string> = {
-  complete: 'Complete',
-  waiting_for_decision: 'Waiting for your decision',
-  analyzing: 'Analyzing',
-  collecting_evidence: 'Collecting evidence',
-  reviewing: 'Reviewing',
   queued: 'Queued',
+  collecting_data: 'Collecting data',
+  analyzing: 'Analyzing',
+  reviewing_analysis: 'HELM review',
+  creating: 'Creating',
+  reviewing_creative: 'HELM review',
+  waiting_for_approval: 'Waiting for your approval',
+  generating_images: 'Generating images',
+  complete: 'Complete',
   blocked: 'Blocked',
   failed: 'Failed',
   cancelled: 'Cancelled',
-  building_artifact: 'Building artifact',
 };
 
 /**
@@ -45,28 +50,66 @@ const STAGE_LABEL: Record<string, string> = {
 export function IntelligenceWorkspace({
   runs,
   campaigns,
+  intents,
   workspaceSlug,
   scopeLabel,
   rangeLabel,
   freshnessLabel,
   initialIntent,
   nowIso,
+  canRun = false,
+  live = false,
 }: {
   runs: IntelligenceRun[];
   campaigns: CampaignSummary[];
+  intents: readonly { id: string; label: string; detail: string }[];
   workspaceSlug: string;
   scopeLabel: string;
   rangeLabel: string;
   freshnessLabel: string;
   initialIntent?: string;
   nowIso: string;
+  /** Viewers read investigations; they do not start them. */
+  canRun?: boolean;
+  live?: boolean;
 }) {
+  const router = useRouter();
   const [intent, setIntent] = useState<string>(initialIntent ?? 'diagnose');
   const [question, setQuestion] = useState('');
   const [selected, setSelected] = useState<string[]>(['cmp_m_broad_04', 'cmp_g_high_intent']);
   const [attachBrand, setAttachBrand] = useState(true);
+  const [generateCreative, setGenerateCreative] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
 
   const decisionCampaigns = campaigns.filter((campaign) => campaign.intelligence !== 'none');
+
+  /**
+   * Starts the run and follows it.
+   *
+   * The API answers as soon as the run exists, not when it finishes, so the
+   * route change lands on a run page that is already streaming the fleet.
+   */
+  const start = async () => {
+    setStarting(true);
+    setProblem(null);
+    try {
+      const { run } = await api.post<{ run: IntelligenceRun }>(
+        `/api/workspaces/${workspaceSlug}/intelligence`,
+        {
+          intent,
+          question: question.trim() || undefined,
+          campaignIds: selected,
+          attachBrand,
+          generateCreative,
+        },
+      );
+      router.push(routes.run(workspaceSlug, run.id));
+    } catch (error) {
+      setProblem(describeError(error));
+      setStarting(false);
+    }
+  };
 
   return (
     <div className="space-y-10">
@@ -80,7 +123,7 @@ export function IntelligenceWorkspace({
 
         <div className="s-panel mt-5 overflow-hidden p-0">
           <ul className="grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-3">
-            {INTENTS.map((entry) => {
+            {intents.map((entry) => {
               const active = entry.id === intent;
               return (
                 <li key={entry.id} className="bg-surface">
@@ -168,27 +211,60 @@ export function IntelligenceWorkspace({
                 </ul>
               </Disclosure>
 
-              <div className="mt-2 border-t border-line pt-3">
+              <div className="mt-2 space-y-2 border-t border-line pt-3">
                 <Checkbox
                   checked={attachBrand}
                   onChange={setAttachBrand}
                   label="Attach the Arc Bottle creative direction"
                   description="Northstar Hydration brand guidance and the approved campaign line."
                 />
+                <Checkbox
+                  checked={generateCreative}
+                  onChange={setGenerateCreative}
+                  label="Let the creative director render replacement visuals"
+                  description="Renders in the image studio and files the result in the library. Nothing is published to a channel."
+                />
               </div>
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
-              <Link
-                href={routes.run(workspaceSlug, 'run_0824_cpa')}
-                className="inline-flex h-11 items-center gap-2 rounded-control bg-action-200 px-4 text-[15px] font-medium text-action-ink transition-colors hover:bg-action-400"
-              >
-                Start investigation
-                <IconArrowRight size={17} />
-              </Link>
+              {canRun && live ? (
+                <button
+                  type="button"
+                  onClick={() => void start()}
+                  disabled={starting}
+                  className="inline-flex h-11 items-center gap-2 rounded-control bg-action-200 px-4 text-[15px] font-medium text-action-ink transition-colors hover:bg-action-400 disabled:opacity-70"
+                >
+                  {starting ? 'Calling the fleet\u2026' : 'Start investigation'}
+                  {starting ? (
+                    <span
+                      className="anim-working inline-flex h-1.5 w-1.5 rounded-full bg-action-ink"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <IconArrowRight size={17} />
+                  )}
+                </button>
+              ) : live ? (
+                <p className="inline-flex items-center gap-2 text-[13px] text-ink-500">
+                  <IconLock size={15} />
+                  Starting an investigation needs the analyst role or above.
+                </p>
+              ) : (
+                <Link
+                  href={routes.run(workspaceSlug, runs[0]?.id ?? 'run_0824_cpa')}
+                  className="inline-flex h-11 items-center gap-2 rounded-control bg-action-200 px-4 text-[15px] font-medium text-action-ink transition-colors hover:bg-action-400"
+                >
+                  Open the sample investigation
+                  <IconArrowRight size={17} />
+                </Link>
+              )}
               <p className="text-[12.5px] text-ink-400">
                 Runs continue if you navigate away. Nothing is written to your ad accounts.
               </p>
+            </div>
+            <div aria-live="polite" className="min-h-[20px]">
+              {problem ? <p className="mt-2 text-[13px] text-bad">{problem}</p> : null}
             </div>
           </div>
         </div>

@@ -1,21 +1,35 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
+import { getSession, getWorkspace } from '@/services/http/queries';
+import { routes } from '@/lib/routes';
 import {
   DEFAULT_SCOPE_ID,
   NOW_ISO,
-  accounts,
+  accounts as sampleAccounts,
   activeRun,
-  connections,
+  connections as sampleConnections,
   currentUser,
   runs,
   recentScopeIds,
   savedGroups,
   scopeById,
-  scopes,
-  workspaces,
+  scopes as sampleScopes,
+  workspaces as sampleWorkspaces,
 } from '@/services/mock';
 
+/**
+ * Protected layout.
+ *
+ * The session is resolved on the server before any protected UI paints. An
+ * unauthenticated visitor is redirected to sign-in with a safe return path; a
+ * signed-in visitor who is not a member of this workspace gets a not-found,
+ * never a partially rendered workspace they cannot see.
+ *
+ * If the API itself is unreachable the shell still renders from the typed
+ * sample workspace so the product is reviewable offline — the routes inside it
+ * say so rather than implying the data is live.
+ */
 export default async function WorkspaceLayout({
   children,
   params,
@@ -24,16 +38,45 @@ export default async function WorkspaceLayout({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  const workspace = workspaces.find((entry) => entry.slug === workspaceSlug);
+
+  const session = await getSession();
+  const apiReachable = session.ok;
+
+  if (apiReachable && !session.data.authenticated) {
+    redirect(routes.signin(routes.briefing(workspaceSlug)));
+  }
+
+  const live = apiReachable ? await getWorkspace(workspaceSlug) : null;
+
+  if (live && !live.ok && live.status === 404) notFound();
+  if (live && !live.ok && live.status === 401) {
+    redirect(routes.signin(routes.briefing(workspaceSlug)));
+  }
+
+  const workspace =
+    live?.ok === true
+      ? live.data.workspace
+      : sampleWorkspaces.find((entry) => entry.slug === workspaceSlug);
   if (!workspace) notFound();
 
-  const scope = scopeById(DEFAULT_SCOPE_ID);
+  const workspaces =
+    apiReachable && session.data.authenticated ? session.data.workspaces : sampleWorkspaces;
+  const accounts = live?.ok ? live.data.accounts : sampleAccounts;
+  const scopes = live?.ok ? live.data.scopes : sampleScopes;
+  const groups = live?.ok ? live.data.groups : savedGroups;
+  const connections = live?.ok ? live.data.connections : sampleConnections;
+  const user =
+    apiReachable && session.data.authenticated
+      ? session.data.user
+      : { name: currentUser.name, email: currentUser.email, title: currentUser.title };
+
+  const scope = scopes.find((entry) => entry.id === DEFAULT_SCOPE_ID) ?? scopes[0] ?? scopeById(DEFAULT_SCOPE_ID);
   const attentionCount = accounts.filter(
     (account) => scope.accountIds.includes(account.id) && account.health.state !== 'fresh',
   ).length;
 
   const syncing = connections.some((connection) => connection.status === 'syncing');
-  const decisionCount = runs.filter((run) => run.stage === 'waiting_for_decision').length;
+  const decisionCount = runs.filter((run) => run.stage === 'waiting_for_approval').length;
 
   return (
     <AppShell
@@ -41,7 +84,7 @@ export default async function WorkspaceLayout({
       workspaces={workspaces}
       accounts={accounts}
       scopes={scopes}
-      groups={savedGroups}
+      groups={groups}
       recentScopeIds={recentScopeIds}
       scopeId={scope.id}
       scopeLabel={scope.label}
@@ -52,7 +95,7 @@ export default async function WorkspaceLayout({
       attentionCount={attentionCount}
       decisionCount={decisionCount}
       nowIso={NOW_ISO}
-      user={{ name: currentUser.name, email: currentUser.email, title: currentUser.title }}
+      user={{ name: user.name, email: user.email, title: user.title }}
       activeRun={activeRun ?? null}
       query=""
     >

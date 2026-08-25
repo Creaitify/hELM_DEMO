@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { AuditEntry, Connection, Member, UserPreference, Workspace } from '@/contracts';
+import type { AuditEntry, Connection, Member, Role, UserPreference, Workspace } from '@/contracts';
 import { Button } from '@/components/primitives/Button';
 import { Select, Tabs, TextField } from '@/components/primitives/Controls';
 import { ConnectionBadge, StatusBadge } from '@/components/primitives/Status';
 import { PermissionState } from '@/components/primitives/States';
-import { IconArrowRight, ProviderMark, providerLabel } from '@/components/icons';
+import { IconArrowRight, IconLock, ProviderMark, providerLabel } from '@/components/icons';
+import { api, describeError } from '@/lib/api';
 import { formatRelative } from '@/lib/format';
 import { routes } from '@/lib/routes';
 import { cn } from '@/lib/cn';
@@ -29,6 +31,11 @@ export function SettingsWorkspace({
   workspaceSlug,
   initialTab,
   nowIso,
+  canManageMembers = false,
+  assignableRoles = [],
+  roleMatrix = [],
+  currentUserId,
+  live = false,
 }: {
   workspace: Workspace;
   members: Member[];
@@ -38,11 +45,54 @@ export function SettingsWorkspace({
   workspaceSlug: string;
   initialTab?: string;
   nowIso: string;
+  /** Changing a role or removing access is an admin or owner permission. */
+  canManageMembers?: boolean;
+  /** Roles the caller's own role is allowed to hand out. */
+  assignableRoles?: Role[];
+  roleMatrix?: { role: Role; label: string; permissions: string[] }[];
+  currentUserId?: string;
+  live?: boolean;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState(initialTab ?? 'workspace');
   const [name, setName] = useState(workspace.name);
   const [prefs, setPrefs] = useState(preferences);
   const [saved, setSaved] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busyMember, setBusyMember] = useState<string | null>(null);
+
+  /**
+   * Role changes are enforced by the backend, which is the authority. The
+   * control here only makes the rule legible: a role the caller cannot assign
+   * is not offered, and the backend refuses it anyway.
+   */
+  const changeRole = async (member: Member, role: Role) => {
+    setBusyMember(member.id);
+    setProblem(null);
+    try {
+      await api.patch(`/api/workspaces/${workspaceSlug}/members/${member.id}`, { role });
+      setSaved(`${member.name} is now a ${role}.`);
+      router.refresh();
+    } catch (error) {
+      setProblem(describeError(error));
+    } finally {
+      setBusyMember(null);
+    }
+  };
+
+  const removeMember = async (member: Member) => {
+    setBusyMember(member.id);
+    setProblem(null);
+    try {
+      await api.del(`/api/workspaces/${workspaceSlug}/members/${member.id}`);
+      setSaved(`${member.name} no longer has access to ${workspace.name}.`);
+      router.refresh();
+    } catch (error) {
+      setProblem(describeError(error));
+    } finally {
+      setBusyMember(null);
+    }
+  };
 
   return (
     <div>
@@ -120,7 +170,12 @@ export function SettingsWorkspace({
                 {members.filter((m) => m.status === 'active').length} active members ·{' '}
                 {members.filter((m) => m.status === 'invited').length} pending invitation
               </p>
-              <Button variant="indigo" size="compact" onClick={() => setSaved('Invitation sent.')}>
+              <Button
+                variant="indigo"
+                size="compact"
+                disabled={!canManageMembers}
+                onClick={() => setSaved('Invitation sent.')}
+              >
                 Invite a member
               </Button>
             </div>
@@ -138,17 +193,80 @@ export function SettingsWorkspace({
                     <span className="mono block truncate text-[11.5px] text-ink-400">{member.email}</span>
                   </span>
                   {member.status === 'invited' ? <StatusBadge tone="warn">Invitation pending</StatusBadge> : null}
-                  <span className="w-[92px] shrink-0 text-[13px] text-ink-700">{ROLE_LABEL[member.role]}</span>
+                  {canManageMembers && live && assignableRoles.includes(member.role) ? (
+                    <span className="w-[128px] shrink-0">
+                      <label className="sr-only" htmlFor={`role-${member.id}`}>
+                        Role for {member.name}
+                      </label>
+                      <select
+                        id={`role-${member.id}`}
+                        value={member.role}
+                        disabled={busyMember === member.id}
+                        onChange={(event) => void changeRole(member, event.target.value as Role)}
+                        className="h-9 w-full rounded-control border border-line bg-surface px-2 text-[13px] text-ink-950 outline-none focus:border-helm-500"
+                      >
+                        {assignableRoles.map((role) => (
+                          <option key={role} value={role}>
+                            {ROLE_LABEL[role]}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+                  ) : (
+                    <span className="w-[92px] shrink-0 text-[13px] text-ink-700">{ROLE_LABEL[member.role]}</span>
+                  )}
                   <span className="mono w-[104px] shrink-0 text-right text-[11.5px] text-ink-400">
                     {formatRelative(member.lastActive, nowIso)}
                   </span>
+                  {canManageMembers && live && member.id !== currentUserId ? (
+                    <button
+                      type="button"
+                      disabled={busyMember === member.id}
+                      onClick={() => void removeMember(member)}
+                      className="shrink-0 text-[12.5px] text-ink-400 transition-colors hover:text-bad"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
-            <PermissionState
-              what="Only owners and admins can change roles or remove members."
-              who="Aniket Rao is the owner of Northstar Group."
-            />
+            <div aria-live="polite">
+              {problem ? <p className="text-[13px] text-bad">{problem}</p> : null}
+            </div>
+
+            {canManageMembers ? null : (
+              <PermissionState
+                what="Only owners and admins can change roles or remove members."
+                who={`Your role in ${workspace.name} is ${ROLE_LABEL[workspace.role]}.`}
+              />
+            )}
+
+            {/* What each role can actually do, resolved by the backend */}
+            {roleMatrix.length ? (
+              <div className="s-panel-subtle px-5 py-5">
+                <p className="micro-label">What each role can do</p>
+                <ul className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {roleMatrix.map((entry) => (
+                    <li key={entry.role}>
+                      <p className="flex items-center gap-2 text-[13.5px] font-medium text-ink-950">
+                        {entry.label}
+                        {entry.role === workspace.role ? <StatusBadge tone="info">You</StatusBadge> : null}
+                      </p>
+                      <ul className="mono mt-1.5 space-y-0.5 text-[11px] text-ink-500">
+                        {entry.permissions.map((permission) => (
+                          <li key={permission}>{permission}</li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mono mt-4 flex items-center gap-2 border-t border-line pt-3 text-[11px] text-ink-400">
+                  <IconLock size={13} />
+                  The backend enforces every one of these. Hiding a control is never the enforcement.
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

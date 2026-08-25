@@ -1,8 +1,18 @@
 const path = require('node:path');
-const { chromium } = require('C:/Users/prach/AppData/Local/npm-cache/_npx/e41f203b7505f1fb/node_modules/playwright');
 
-const ROOT = 'C:/Users/prach/helm-final/tmp/pdfs/captures';
-const BASE = 'http://127.0.0.1:3100';
+/**
+ * Playwright resolves from the frontend install, and the output directory is
+ * relative to this file, so the script runs on any machine that checked the
+ * repo out — the earlier version hardcoded both to one developer's laptop.
+ */
+const PLAYWRIGHT = require.resolve('playwright', {
+  paths: [path.join(__dirname, '../../frontend')],
+});
+
+const { chromium } = require(PLAYWRIGHT);
+
+const ROOT = path.join(__dirname, 'captures');
+const BASE = process.env.HELM_BASE_URL || 'http://127.0.0.1:3000';
 
 async function settle(page) {
   await page.waitForLoadState('networkidle');

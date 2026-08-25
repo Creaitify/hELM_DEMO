@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import type { Artifact } from '@/contracts';
 import { ArcBottlePoster, type PosterVariant } from '@/components/brand/ArcBottlePoster';
@@ -9,8 +10,18 @@ import { SearchField, Tabs } from '@/components/primitives/Controls';
 import { StatusBadge } from '@/components/primitives/Status';
 import { EmptyState } from '@/components/primitives/States';
 import { Drawer } from '@/components/primitives/Overlay';
-import { IconArrowRight, IconDownload, IconEvidence, IconPlus, IconShare } from '@/components/icons';
+import {
+  IconArrowRight,
+  IconDownload,
+  IconEvidence,
+  IconLock,
+  IconPlus,
+  IconShare,
+  IconSpark,
+} from '@/components/icons';
 import { CREATIVE_LINE } from '@/services/mock/campaigns';
+import { api, describeError } from '@/lib/api';
+import { DownloadMenu } from '@/features/intelligence/DownloadMenu';
 import { formatRelative } from '@/lib/format';
 import { routes } from '@/lib/routes';
 import { cn } from '@/lib/cn';
@@ -36,6 +47,13 @@ const TYPE_LABEL: Record<Artifact['type'], string> = {
   creative_direction: 'Creative direction',
   creative_variant: 'Creative variant',
   copy_set: 'Copy set',
+  generated_image: 'Generated image',
+};
+
+export type LibraryCreateContext = {
+  formats: { format: string; aspect: string; spec: string }[];
+  startingPoints: { findingId: string; title: string; hint: string }[];
+  inherited: Record<string, string>;
 };
 
 const POSTER_FOR: Record<string, PosterVariant> = {
@@ -49,14 +67,88 @@ export function LibraryWorkspace({
   artifacts,
   workspaceSlug,
   nowIso,
+  initialMode = 'reports',
+  canCreate = false,
+  create,
+  live = false,
 }: {
   artifacts: Artifact[];
   workspaceSlug: string;
   nowIso: string;
+  initialMode?: 'reports' | 'creative';
+  /** Viewers read the library; they do not add to it. */
+  canCreate?: boolean;
+  create?: LibraryCreateContext;
+  live?: boolean;
 }) {
-  const [mode, setMode] = useState<'reports' | 'creative'>('reports');
+  const router = useRouter();
+  const [mode, setMode] = useState<'reports' | 'creative'>(initialMode);
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [startingPoint, setStartingPoint] = useState<string | null>(null);
+  const [chosenFormat, setChosenFormat] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const formats = create?.formats ?? [
+    { format: 'Meta · 4:5 feed', aspect: '4:5', spec: '1080 × 1350' },
+    { format: 'Meta · 9:16 story', aspect: '9:16', spec: '1080 × 1920' },
+    { format: 'Meta · 1:1 square', aspect: '1:1', spec: '1080 × 1080' },
+    { format: 'Decision memo', aspect: 'document', spec: 'Document' },
+  ];
+
+  const startingPoints = create?.startingPoints ?? [];
+  const inherited = create?.inherited ?? {
+    brand: 'Northstar Hydration · Arc Bottle',
+    campaignLine: CREATIVE_LINE,
+    palette: 'Graphite, frost, deep cobalt, one coral annotation',
+    audience: 'Broad prospecting · India',
+    objective: 'Sales · purchase',
+  };
+
+  /**
+   * Contextual create.
+   *
+   * A visual format hands off to the image studio with the finding already
+   * chosen; a document is filed straight into the library as a draft. Either
+   * way the artifact starts from something HELM already understands.
+   */
+  const continueCreate = async () => {
+    const format = formats.find((entry) => entry.format === chosenFormat) ?? formats[0];
+    const point = startingPoints.find((entry) => entry.findingId === startingPoint);
+
+    if (format.aspect !== 'document') {
+      const search = new URLSearchParams();
+      if (point) search.set('finding', point.findingId);
+      search.set('aspect', format.aspect);
+      router.push(`${routes.library(workspaceSlug)}/studio?${search.toString()}`);
+      return;
+    }
+
+    if (!live) {
+      setCreateOpen(false);
+      return;
+    }
+
+    setSaving(true);
+    setProblem(null);
+    try {
+      await api.post(`/api/workspaces/${workspaceSlug}/library`, {
+        title: point?.title ?? 'Untitled decision memo',
+        type: 'decision_memo',
+        mode: 'reports',
+        findingId: point?.findingId,
+        summary: point?.hint,
+        tags: ['Draft'],
+      });
+      setCreateOpen(false);
+      router.refresh();
+    } catch (error) {
+      setProblem(describeError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const rows = useMemo(() => {
     return artifacts.filter((artifact) => {
@@ -79,8 +171,8 @@ export function LibraryWorkspace({
           value={mode}
           onChange={(value) => setMode(value as 'reports' | 'creative')}
           options={[
-            { value: 'reports', label: 'Reports', count: artifacts.filter((a) => a.mode === 'reports').length },
-            { value: 'creative', label: 'Creative', count: artifacts.filter((a) => a.mode === 'creative').length },
+            { value: 'reports', label: 'Documents', count: artifacts.filter((a) => a.mode === 'reports').length },
+            { value: 'creative', label: 'Assets', count: artifacts.filter((a) => a.mode === 'creative').length },
           ]}
           className="border-b border-line"
         />
@@ -90,9 +182,30 @@ export function LibraryWorkspace({
           onChange={(event) => setQuery(event.target.value)}
           className="w-full sm:ml-auto sm:w-[260px]"
         />
-        <Button variant="indigo" size="compact" leading={<IconPlus size={16} />} onClick={() => setCreateOpen(true)}>
-          Create
-        </Button>
+        {mode === 'creative' ? (
+          <Link
+            href={`${routes.library(workspaceSlug)}/studio`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-control border border-line-strong px-3 text-[13.5px] font-medium text-ink-950 transition-colors hover:bg-surface-subtle"
+          >
+            <IconSpark size={15} />
+            Open the image studio
+          </Link>
+        ) : null}
+        {canCreate ? (
+          <Button
+            variant="indigo"
+            size="compact"
+            leading={<IconPlus size={16} />}
+            onClick={() => setCreateOpen(true)}
+          >
+            Create
+          </Button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-400">
+            <IconLock size={14} />
+            Read only
+          </span>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -103,10 +216,22 @@ export function LibraryWorkspace({
       ) : mode === 'reports' ? (
         <ul className="s-panel divide-y divide-line p-0">
           {rows.map((artifact) => (
-            <li key={artifact.id}>
+            <li key={artifact.id} className="relative">
+              {live ? (
+                <div className="absolute right-4 top-1/2 z-10 -translate-y-1/2 sm:right-6">
+                  <DownloadMenu
+                    href={
+                      artifact.linkedRunId
+                        ? `/api/workspaces/${workspaceSlug}/intelligence/${artifact.linkedRunId}/export`
+                        : `/api/workspaces/${workspaceSlug}/library/${artifact.id}/export`
+                    }
+                    label="Download"
+                  />
+                </div>
+              ) : null}
               <Link
                 href={artifact.linkedRunId ? routes.run(workspaceSlug, artifact.linkedRunId) : routes.library(workspaceSlug)}
-                className="flex flex-wrap items-start gap-x-5 gap-y-2 px-5 py-4 transition-colors hover:bg-surface-subtle sm:px-6"
+                className="flex flex-wrap items-start gap-x-5 gap-y-2 px-5 py-4 pr-[150px] transition-colors hover:bg-surface-subtle sm:px-6 sm:pr-[168px]"
               >
                 <span className="mt-[3px] shrink-0 text-ink-400">
                   <IconEvidence size={18} />
@@ -138,7 +263,14 @@ export function LibraryWorkspace({
             const poster = POSTER_FOR[artifact.id];
             return (
               <article key={artifact.id} className="s-panel overflow-hidden p-0">
-                {poster ? (
+                {artifact.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={artifact.imageUrl}
+                    alt={artifact.title}
+                    className="block w-full border-b border-line bg-night-900"
+                  />
+                ) : poster ? (
                   <div className="aspect-[4/5] w-full border-b border-line">
                     <ArcBottlePoster variant={poster} label={`Creative — ${artifact.title}`} />
                   </div>
@@ -196,11 +328,18 @@ export function LibraryWorkspace({
         title="Create"
         description="Start from something HELM already understands."
         footer={
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-end gap-2">
+            {problem ? <p className="mr-auto text-[12.5px] text-bad">{problem}</p> : null}
             <Button variant="quiet" size="compact" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button variant="indigo" size="compact" onClick={() => setCreateOpen(false)}>
+            <Button
+              variant="indigo"
+              size="compact"
+              onClick={() => void continueCreate()}
+              pending={saving}
+              pendingLabel="Filing…"
+            >
               Continue
             </Button>
           </div>
@@ -209,59 +348,65 @@ export function LibraryWorkspace({
         <div className="space-y-6">
           <section>
             <p className="micro-label">Start from a finding</p>
-            <ul className="mt-2 divide-y divide-line rounded-control border border-line">
-              {[
-                ['The leading prospecting creative is repeating itself', 'Brief two Arc Bottle replacements'],
-                ['Meta prospecting CPA rose 31%', 'Write the decision memo for this week'],
-              ].map(([title, hint]) => (
-                <li key={title}>
-                  <button
-                    type="button"
-                    className="w-full px-3.5 py-3 text-left transition-colors hover:bg-surface-subtle"
-                  >
-                    <span className="block text-[14px] text-ink-950">{title}</span>
-                    <span className="block text-[12.5px] text-ink-500">{hint}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            {startingPoints.length ? (
+              <ul className="mt-2 divide-y divide-line rounded-control border border-line">
+                {startingPoints.map((point) => (
+                  <li key={point.findingId}>
+                    <button
+                      type="button"
+                      onClick={() => setStartingPoint(point.findingId)}
+                      aria-pressed={startingPoint === point.findingId}
+                      className={cn(
+                        'w-full px-3.5 py-3 text-left transition-colors',
+                        startingPoint === point.findingId ? 'bg-helm-100/50' : 'hover:bg-surface-subtle',
+                      )}
+                    >
+                      <span className="block text-[14px] text-ink-950">{point.title}</span>
+                      <span className="block text-[12.5px] text-ink-500">{point.hint}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-[13px] text-ink-400">
+                No open findings to start from. Run an investigation first, or choose a format below.
+              </p>
+            )}
           </section>
 
           <section>
             <p className="micro-label">Choose a format</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {[
-                ['Meta · 4:5 feed', '1080 × 1350'],
-                ['Meta · 9:16 story', '1080 × 1920'],
-                ['Meta · 1:1 square', '1080 × 1080'],
-                ['Decision memo', 'Document'],
-              ].map(([label, spec]) => (
+              {formats.map((entry) => (
                 <button
-                  key={label}
+                  key={entry.format}
                   type="button"
+                  onClick={() => setChosenFormat(entry.format)}
+                  aria-pressed={chosenFormat === entry.format}
                   className={cn(
-                    'rounded-control border border-line px-3 py-2.5 text-left transition-colors hover:border-line-strong hover:bg-surface-subtle',
+                    'rounded-control border px-3 py-2.5 text-left transition-colors',
+                    chosenFormat === entry.format
+                      ? 'border-helm-500 bg-helm-50'
+                      : 'border-line hover:border-line-strong hover:bg-surface-subtle',
                   )}
                 >
-                  <span className="block text-[13.5px] text-ink-950">{label}</span>
-                  <span className="mono block text-[11px] text-ink-400">{spec}</span>
+                  <span className="block text-[13.5px] text-ink-950">{entry.format}</span>
+                  <span className="mono block text-[11px] text-ink-400">{entry.spec}</span>
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-[12.5px] leading-[18px] text-ink-400">
+              A visual format opens the image studio with this finding already attached. A document is filed
+              here as a draft.
+            </p>
           </section>
 
           <section>
             <p className="micro-label">Inherited</p>
             <dl className="mono mt-2 space-y-1.5 text-[12px]">
-              {[
-                ['Brand', 'Northstar Hydration · Arc Bottle'],
-                ['Campaign line', CREATIVE_LINE],
-                ['Palette', 'Graphite, frost, deep cobalt, one coral annotation'],
-                ['Audience', 'Broad prospecting · India'],
-                ['Objective', 'Sales · purchase'],
-              ].map(([label, value]) => (
+              {Object.entries(inherited).map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-4 border-b border-line/70 pb-1.5">
-                  <dt className="text-ink-400">{label}</dt>
+                  <dt className="capitalize text-ink-400">{label.replace(/([A-Z])/g, ' $1')}</dt>
                   <dd className="text-right text-ink-700">{value}</dd>
                 </div>
               ))}

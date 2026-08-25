@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { AdAccount, Artifact, Decision, Evidence, Finding, IntelligenceRun, Recommendation } from '@/contracts';
 import { EvidenceDrawer } from '@/components/data/EvidenceDrawer';
@@ -9,8 +10,10 @@ import { Button } from '@/components/primitives/Button';
 import { StatusBadge } from '@/components/primitives/Status';
 import { SectionHeading } from '@/components/primitives/States';
 import { IconCheck, IconDownload, IconShare } from '@/components/icons';
+import { DownloadMenu } from './DownloadMenu';
 import { formatClock, formatRelative } from '@/lib/format';
 import { routes } from '@/lib/routes';
+import { api, describeError } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
 type DecisionState = 'proposed' | 'approved' | 'revision_requested' | 'dismissed' | 'saved';
@@ -85,6 +88,9 @@ export function DecisionMemo({
   artifact,
   workspaceSlug,
   nowIso,
+  canApprove = true,
+  live = false,
+  exportHref,
 }: {
   run: IntelligenceRun;
   findings: Finding[];
@@ -95,12 +101,20 @@ export function DecisionMemo({
   artifact?: Artifact;
   workspaceSlug: string;
   nowIso: string;
+  /** False for a viewer or analyst — the control explains itself instead. */
+  canApprove?: boolean;
+  /** True when the run came from the API, so a decision can be recorded. */
+  live?: boolean;
+  /** Base export path. Absent when there is nothing on the server to download. */
+  exportHref?: string;
 }) {
+  const router = useRouter();
   const [openEvidenceId, setOpenEvidenceId] = useState<string | null>(null);
   const [states, setStates] = useState<Record<string, DecisionState>>(
     Object.fromEntries(recommendations.map((rec) => [rec.id, rec.status as DecisionState])),
   );
   const [notice, setNotice] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
 
   const activeEvidence = evidence.find((entry) => entry.id === openEvidenceId) ?? null;
 
@@ -114,9 +128,32 @@ export function DecisionMemo({
       .filter((account): account is AdAccount => Boolean(account))
       .map((account) => ({ id: account.id, name: account.name, provider: account.provider }));
 
-  const record = (id: string, state: DecisionState, message: string) => {
+  /**
+   * Records the human decision.
+   *
+   * The optimistic state lands immediately so the control never feels slow,
+   * then the backend writes the Decision node and, if the run was paused
+   * waiting for exactly this, releases it to build the memo.
+   */
+  const record = async (id: string, state: DecisionState, message: string) => {
+    const previous = states[id] ?? 'proposed';
     setStates((value) => ({ ...value, [id]: state }));
     setNotice(message);
+    setProblem(null);
+
+    if (!live) return;
+
+    try {
+      await api.post(
+        `/api/workspaces/${workspaceSlug}/intelligence/${run.id}/recommendations/${id}/decide`,
+        { outcome: state === 'saved' ? 'saved' : state },
+      );
+      router.refresh();
+    } catch (error) {
+      setStates((value) => ({ ...value, [id]: previous }));
+      setNotice(null);
+      setProblem(describeError(error));
+    }
   };
 
   return (
@@ -163,9 +200,9 @@ export function DecisionMemo({
         </section>
 
         {/* Recommendations */}
-        <section aria-labelledby="recommendations">
+        <section id="recommendations" aria-labelledby="recommendations-heading">
           <SectionHeading
-            id="recommendations"
+            id="recommendations-heading"
             title="Recommendations"
             hint="Proposed. Nothing has been executed in Google Ads or Meta Ads."
           />
@@ -175,19 +212,34 @@ export function DecisionMemo({
                 key={recommendation.id}
                 recommendation={recommendation}
                 decisionState={states[recommendation.id] ?? 'proposed'}
+                canApprove={canApprove}
                 onApprove={() =>
-                  record(recommendation.id, 'approved', 'Approved and recorded with the basis it was decided on.')
+                  void record(
+                    recommendation.id,
+                    'approved',
+                    'Approved and recorded with the basis it was decided on.',
+                  )
                 }
                 onRevise={() =>
-                  record(recommendation.id, 'revision_requested', 'Revision requested. The run has been reopened.')
+                  void record(
+                    recommendation.id,
+                    'revision_requested',
+                    'Revision requested. The run has been reopened.',
+                  )
                 }
-                onSave={() => record(recommendation.id, 'saved', 'Saved to Library.')}
-                onDismiss={() => record(recommendation.id, 'dismissed', 'Dismissed. The finding stays on record.')}
+                onSave={() => void record(recommendation.id, 'saved', 'Saved to Library.')}
+                onDismiss={() =>
+                  void record(recommendation.id, 'dismissed', 'Dismissed. The finding stays on record.')
+                }
               />
             ))}
           </div>
           <div aria-live="polite" className="min-h-[22px]">
-            {notice ? <p className="mt-3 text-[13px] text-good">{notice}</p> : null}
+            {problem ? (
+              <p className="mt-3 text-[13px] text-bad">{problem}</p>
+            ) : notice ? (
+              <p className="mt-3 text-[13px] text-good">{notice}</p>
+            ) : null}
           </div>
         </section>
 
@@ -263,10 +315,14 @@ export function DecisionMemo({
               {artifact.title}
             </Link>
             <p className="mt-1 text-[12.5px] leading-[18px] text-ink-500">{artifact.summary}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="neutral" size="compact" leading={<IconDownload size={15} />}>
-                Export
-              </Button>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {exportHref ? (
+                <DownloadMenu href={exportHref} label="Download" />
+              ) : (
+                <Button variant="neutral" size="compact" leading={<IconDownload size={15} />} disabled>
+                  Download
+                </Button>
+              )}
               <Button variant="quiet" size="compact" leading={<IconShare size={15} />}>
                 Share
               </Button>

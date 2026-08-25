@@ -478,11 +478,11 @@ export const recommendationsForFinding = (findingId: string): Recommendation[] =
 function stages(active: number, records: [string, string][], failedAt?: number): RunStageRecord[] {
   const keys = [
     'queued',
-    'collecting_evidence',
+    'collecting_data',
     'analyzing',
-    'reviewing',
-    'waiting_for_decision',
-    'building_artifact',
+    'reviewing_analysis',
+    'waiting_for_approval',
+    'generating_images',
     'complete',
   ] as const;
   return records.map(([detail, at], index) => ({
@@ -514,7 +514,7 @@ export const runs: IntelligenceRun[] = [
     id: 'run_0824_cpa',
     title: 'Why did blended cost per purchase rise last week?',
     intent: 'Diagnose a performance change',
-    stage: 'waiting_for_decision',
+    stage: 'waiting_for_approval',
     stages: stages(4, [
       ['Requested from Briefing', '2026-08-24T07:41:00+05:30'],
       ['4 accounts · 30 complete days · 11 campaigns', '2026-08-24T07:41:22+05:30'],
@@ -638,16 +638,16 @@ export const runs: IntelligenceRun[] = [
     stages: [
       { stage: 'queued', label: 'Queued', state: 'done', detail: 'Requested from Intelligence', at: '2026-08-09T10:12:00+05:30' },
       {
-        stage: 'collecting_evidence',
+        stage: 'collecting_data',
         label: 'Collecting evidence',
         state: 'failed',
         detail: 'Northstar US reports in USD on an America/New_York day. No named conversion basis exists for this workspace.',
         at: '2026-08-09T10:12:24+05:30',
       },
       { stage: 'analyzing', label: 'Analyzing', state: 'skipped' },
-      { stage: 'reviewing', label: 'Reviewing', state: 'skipped' },
-      { stage: 'waiting_for_decision', label: 'Waiting for your decision', state: 'skipped' },
-      { stage: 'building_artifact', label: 'Building artifact', state: 'skipped' },
+      { stage: 'reviewing_analysis', label: 'Reviewing', state: 'skipped' },
+      { stage: 'waiting_for_approval', label: 'Waiting for your decision', state: 'skipped' },
+      { stage: 'generating_images', label: 'Building artifact', state: 'skipped' },
       { stage: 'complete', label: 'Complete', state: 'skipped' },
     ],
     startedAt: '2026-08-09T10:12:00+05:30',

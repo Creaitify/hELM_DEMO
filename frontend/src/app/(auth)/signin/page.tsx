@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { MistField } from '@/components/brand/MistField';
 import { HelmWordmark } from '@/components/brand/HelmMark';
 import { SigninScene } from '@/components/public/SigninScene';
 import { SignInPanel } from '@/features/auth/SignInPanel';
 import { safeReturnTo } from '@/lib/safe-return';
 import { routes } from '@/lib/routes';
+import { getAuthConfig, getSession } from '@/services/http/queries';
 import { WORKSPACE_SLUG } from '@/services/mock/constants';
 
 export const metadata: Metadata = {
@@ -17,10 +19,22 @@ export const metadata: Metadata = {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ returnTo?: string; error?: string }>;
 }) {
   const params = await searchParams;
   const returnTo = safeReturnTo(params.returnTo, routes.briefing(WORKSPACE_SLUG));
+
+  // Whether Google is live is a server-rendered fact, not a client probe, so
+  // the button never changes its label after paint.
+  const [config, session] = await Promise.all([getAuthConfig(), getSession()]);
+  const apiReachable = config.ok;
+  const googleConfigured = config.ok ? config.data.googleConfigured : false;
+
+  // With AUTH_ENABLED=false the API answers as the sample owner already, so
+  // the sign-in page has nothing to ask for.
+  if (session.ok && session.data.authenticated) {
+    redirect(returnTo);
+  }
 
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
@@ -72,7 +86,14 @@ export default async function SignInPage({
       <section className="relative flex flex-1 items-center justify-center overflow-y-auto bg-canvas px-6 py-10 sm:px-10 lg:w-[42%] lg:flex-none lg:px-14 lg:py-12">
         <MistField tone="light" grid={false} />
         <main id="main" className="relative flex w-full justify-center">
-          <SignInPanel returnTo={returnTo} />
+          <SignInPanel
+            returnTo={returnTo}
+            googleConfigured={googleConfigured}
+            authEnabled={config.ok ? config.data.authEnabled : true}
+            buttonLabel={config.ok ? config.data.signInLabel : 'Continue with Google'}
+            apiReachable={apiReachable}
+            initialError={params.error ? decodeURIComponent(params.error) : undefined}
+          />
         </main>
       </section>
     </div>
