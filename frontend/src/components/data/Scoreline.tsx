@@ -56,9 +56,15 @@ export function Scoreline({
                   from {formatMetric(metric.previousValue ?? null, metric.key, { currency: metric.currency, compact })}
                 </span>
               </div>
-              <p className="mt-2 text-[11.5px] leading-[16px] text-ink-400">
-                {metric.caveat ?? definition.definition}
-              </p>
+              {/*
+                A caveat changes how the figure should be read, so it stays on
+                screen. The definition does not — it is reference, it is the
+                same every morning, and six of them turn the scoreline into a
+                wall of text above the chart. It keeps its tooltip instead.
+              */}
+              {metric.caveat ? (
+                <p className="mt-2 text-[11.5px] leading-[16px] text-ink-400">{metric.caveat}</p>
+              ) : null}
             </div>
           );
         })}

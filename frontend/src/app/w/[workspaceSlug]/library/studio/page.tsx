@@ -5,7 +5,7 @@ import { ErrorState } from '@/components/primitives/States';
 import { ImageStudio } from '@/features/studio/ImageStudio';
 import { IconChevronLeft } from '@/components/icons';
 import { routes } from '@/lib/routes';
-import { getStudio } from '@/services/http/queries';
+import { getBriefing, getStudio } from '@/services/http/queries';
 import { NOW_ISO } from '@/services/mock';
 
 export const metadata: Metadata = { title: 'Image studio' };
@@ -15,6 +15,10 @@ export const metadata: Metadata = { title: 'Image studio' };
  *
  * It is reached from the creative mode of the library or from a finding, so a
  * generation always starts from something the workspace already understands.
+ *
+ * The briefing is read alongside it so the studio opens on the account as it
+ * stands right now. Creative is a response to what the numbers are doing; a
+ * generator that cannot see them is a toy.
  */
 export default async function StudioPage({
   params,
@@ -22,7 +26,10 @@ export default async function StudioPage({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  const studio = await getStudio(workspaceSlug);
+  const [studio, briefing] = await Promise.all([
+    getStudio(workspaceSlug),
+    getBriefing(workspaceSlug),
+  ]);
 
   return (
     <PageShell
@@ -45,7 +52,12 @@ export default async function StudioPage({
       </Link>
 
       {studio.ok ? (
-        <ImageStudio workspaceSlug={workspaceSlug} studio={studio.data} nowIso={NOW_ISO} />
+        <ImageStudio
+          workspaceSlug={workspaceSlug}
+          studio={studio.data}
+          overview={briefing.ok ? briefing.data : null}
+          nowIso={NOW_ISO}
+        />
       ) : (
         <ErrorState
           title="The image studio needs the HELM API"

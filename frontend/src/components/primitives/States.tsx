@@ -8,12 +8,19 @@ export function InlineNotice({
   title,
   children,
   action,
+  compact = false,
   className,
 }: {
   tone?: 'info' | 'warn' | 'bad' | 'good';
   title: string;
   children?: ReactNode;
   action?: ReactNode;
+  /**
+   * One row instead of three. For a caveat that qualifies the figures it sits
+   * under: it still has to be read, but it must not push the chart off screen
+   * to say so.
+   */
+  compact?: boolean;
   className?: string;
 }) {
   const map = {
@@ -22,6 +29,25 @@ export function InlineNotice({
     bad: { bg: 'bg-bad-soft border-bad/25', fg: 'text-bad', icon: <IconAlert size={17} /> },
     good: { bg: 'bg-good-soft border-good/25', fg: 'text-good', icon: <IconInfo size={17} /> },
   }[tone];
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-field border px-4 py-2.5',
+          map.bg,
+          className,
+        )}
+      >
+        <span className={cn('shrink-0', map.fg)}>{map.icon}</span>
+        <p className="shrink-0 text-[13.5px] font-semibold text-ink-950">{title}</p>
+        {children ? (
+          <div className="min-w-0 flex-1 text-[13px] leading-[19px] text-ink-700">{children}</div>
+        ) : null}
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+    );
+  }
 
   return (
     <div className={cn('flex gap-3 rounded-field border px-4 py-3.5', map.bg, className)}>

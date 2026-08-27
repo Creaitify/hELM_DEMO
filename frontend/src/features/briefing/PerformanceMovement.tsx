@@ -26,8 +26,9 @@ export function PerformanceMovement({
 
   return (
     <div className="s-panel px-5 py-5 sm:px-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="micro-label">Performance movement</p>
+      {/* The section above already names this panel; repeating it here only
+          costs a line the chart could have used. */}
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
         <SegmentedControl
           label="Chart metric"
           value={metric}
@@ -37,7 +38,7 @@ export function PerformanceMovement({
       </div>
 
       <MetricChart
-        question={`How did ${metricLabel(metric).toLowerCase()} move across the window?`}
+        question={`How did ${metricLabel(metric)} move across the window?`}
         basis={`${windowLabel} · dashed line is the previous 30 days · ${METRICS[metric].definition}`}
         metric={metric}
         series={[

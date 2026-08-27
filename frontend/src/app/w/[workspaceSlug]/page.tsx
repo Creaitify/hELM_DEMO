@@ -155,6 +155,7 @@ export default async function BriefingPage({
         />
 
         <InlineNotice
+          compact
           tone="warn"
           title={partialNotice.title}
           action={
@@ -166,25 +167,16 @@ export default async function BriefingPage({
           {partialNotice.detail}
         </InlineNotice>
 
-        <DecisionBrief
-          workspaceSlug={workspaceSlug}
-          decision={decisionFindings}
-          watch={watchFindings}
-          stable={stableFindings}
-          recommendations={recommendations}
-          evidence={evidence}
-          accounts={accounts}
-          campaigns={blendedCampaigns}
-          runIdByFinding={runIdByFinding}
-        />
-
-        {/* Performance movement */}
+        {/*
+          The movement comes before the decisions it produced.
+          A briefing that opens on paragraphs asks the reader to take the
+          conclusion on trust; opening on the series lets them see the thing
+          the findings are about, then read what HELM made of it.
+        */}
         <section aria-labelledby="movement" className="scroll-mt-24">
-          <SectionHeading
-            id="movement"
-            title="Performance movement"
-            hint="Material changes are annotated on the series rather than explained in a legend."
-          />
+          {/* The chart states its own question and basis, so the section does
+              not need to restate them above it. */}
+          <SectionHeading id="movement" title="Performance movement" />
           <div className="mt-5 space-y-5">
             <PerformanceMovement seriesByMetric={seriesByMetric} windowLabel={windowLabel} />
 
@@ -246,6 +238,18 @@ export default async function BriefingPage({
             </div>
           </div>
         </section>
+
+        <DecisionBrief
+          workspaceSlug={workspaceSlug}
+          decision={decisionFindings}
+          watch={watchFindings}
+          stable={stableFindings}
+          recommendations={recommendations}
+          evidence={evidence}
+          accounts={accounts}
+          campaigns={blendedCampaigns}
+          runIdByFinding={runIdByFinding}
+        />
 
         {/* Since your last visit */}
         <section aria-labelledby="since" className="scroll-mt-24">

@@ -35,12 +35,63 @@ const WORKSPACE = process.env.HELM_WORKSPACE ?? 'northstar-group';
 const SKELETON = '#main .animate-pulse';
 
 /**
+ * Signs in the way a person does, so the run exercises the real session.
+ *
+ * With AUTH_ENABLED=true every protected route is a 401 until a cookie exists,
+ * which means an unauthenticated verification run would only ever prove that
+ * the sign-in redirect works. The sample sign-in issues a genuine signed
+ * cookie through the same code path Google lands on, so everything downstream
+ * is tested as it ships rather than with the guard switched off.
+ */
+async function signIn() {
+  const config = await fetch(`${API}/api/auth/config`).then((response) => response.json());
+  if (!config.authEnabled) return { cookie: '', mode: 'auth disabled' };
+
+  if (!config.devLoginAllowed) {
+    throw new Error(
+      'AUTH_ENABLED=true but ALLOW_DEV_LOGIN=false — the verifier has no identity it may use.',
+    );
+  }
+
+  const response = await fetch(`${API}/api/auth/demo`, { method: 'POST' });
+  if (!response.ok) throw new Error(`Sample sign-in answered ${response.status}`);
+
+  const cookie = (response.headers.getSetCookie?.() ?? [])
+    .map((entry) => entry.split(';')[0])
+    .join('; ');
+  if (!cookie) throw new Error('Sample sign-in returned no session cookie.');
+
+  return { cookie, mode: 'signed in' };
+}
+
+/**
+ * Proves the guard itself, before any authenticated route is visited.
+ *
+ * A suite that only ever runs with a cookie cannot tell a protected route from
+ * a public one. This asks for a workspace with no identity at all and requires
+ * the answer to be the sign-in page.
+ */
+async function checkGuard(context) {
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/w/${WORKSPACE}`, { waitUntil: 'domcontentloaded' });
+    const landed = new URL(page.url()).pathname;
+    if (landed !== '/signin') {
+      return [`an unauthenticated visit to /w/${WORKSPACE} landed on ${landed}, not /signin`];
+    }
+    return [];
+  } finally {
+    await page.close();
+  }
+}
+
+/**
  * Reads ids from the API so the deep-link routes point at rows that exist,
  * rather than at fixtures that may have been reseeded.
  */
-async function discover() {
+async function discover(cookie) {
   const read = async (path) => {
-    const response = await fetch(`${API}${path}`);
+    const response = await fetch(`${API}${path}`, cookie ? { headers: { cookie } } : undefined);
     if (!response.ok) throw new Error(`${path} answered ${response.status}`);
     return response.json();
   };
@@ -151,7 +202,8 @@ async function check(page, route) {
 }
 
 async function main() {
-  const discovered = await discover();
+  const { cookie, mode } = await signIn();
+  const discovered = await discover(cookie);
   const list = routes(discovered);
 
   await rm(SHOTS, { recursive: true, force: true });
@@ -167,11 +219,32 @@ async function main() {
   });
   // Otherwise the workflow connector animation smears the capture.
   await context.grantPermissions([]).catch(() => undefined);
-  const page = await context.newPage();
-  await page.emulateMedia({ reducedMotion: 'reduce' });
 
   const failures = [];
-  console.log(`Verifying ${list.length} routes against ${BASE}\n`);
+  console.log(`Verifying ${list.length} routes against ${BASE} — ${mode}\n`);
+
+  // The guard is checked on a clean context, before the cookie is installed.
+  if (cookie) {
+    const problems = await checkGuard(context);
+    if (problems.length) {
+      failures.push({ route: { name: 'guard', path: `/w/${WORKSPACE}` }, problems });
+      console.log(`  FAIL  ${'guard'.padEnd(16)} /w/${WORKSPACE}`);
+      for (const problem of problems) console.log(`        · ${problem}`);
+    } else {
+      console.log(`  ok    ${'guard'.padEnd(16)} unauthenticated visit redirects to /signin`);
+    }
+
+    // Cookies ignore the port, so one entry covers the app and the API.
+    await context.addCookies(
+      cookie.split('; ').map((entry) => {
+        const [name, ...rest] = entry.split('=');
+        return { name, value: rest.join('='), domain: 'localhost', path: '/' };
+      }),
+    );
+  }
+
+  const page = await context.newPage();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
 
   for (const route of list) {
     let result;
