@@ -15,6 +15,7 @@ import { intelligenceRoutes } from './http/intelligence.routes.js';
 import { libraryRoutes } from './http/library.routes.js';
 import { exportRoutes } from './http/export.routes.js';
 import { documentRoutes } from './http/documents.routes.js';
+import { agentRoutes } from './http/agent.routes.js';
 import { studioRoutes } from './http/studio.routes.js';
 import { opsRoutes } from './http/ops.routes.js';
 
@@ -70,6 +71,7 @@ async function main() {
   await app.register(libraryRoutes);
   await app.register(exportRoutes);
   await app.register(documentRoutes);
+  await app.register(agentRoutes);
   await app.register(studioRoutes);
   await app.register(opsRoutes);
 
