@@ -21,6 +21,7 @@ import {
   evidence,
   findings,
   recommendations,
+  runs,
 } from '@/services/mock';
 
 export async function generateMetadata({
@@ -43,6 +44,12 @@ export default async function CampaignDetailPage({
   if (!campaign) notFound();
 
   const campaignFindings = findings.filter((finding) => finding.affectedCampaignIds.includes(id));
+
+  /** Which run produced each finding, so "investigate" reopens it. */
+  const runIdByFinding: Record<string, string> = {};
+  for (const run of runs) {
+    for (const findingId of run.findingIds) runIdByFinding[findingId] ??= run.id;
+  }
 
   /** Daily spend reconstructed from the stored shape so the chart has real geometry. */
   const total = campaign.dailySpend.reduce((sum, value) => sum + value, 0);
@@ -103,6 +110,7 @@ export default async function CampaignDetailPage({
         spendSeries={spendSeries}
         cpaSeries={storySeries}
         workspaceSlug={workspaceSlug}
+        runIdByFinding={runIdByFinding}
       />
     </PageShell>
   );

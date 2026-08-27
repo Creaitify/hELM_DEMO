@@ -15,8 +15,12 @@ const LINKS = [
 ];
 
 /**
- * Transparent over the hero, then a navy surface and hairline after scroll.
- * The height never changes, so nothing below it shifts.
+ * A navy surface from the first pixel, with the hairline arriving on scroll.
+ *
+ * The bar used to be transparent until 16px of scroll, which left the topmost
+ * strip reading as a slightly different shade than the hero directly under it —
+ * a seam across the top of the page at rest, which is where a visitor spends
+ * the longest looking. The height never changes, so nothing below it shifts.
  */
 export function MarketingHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -41,8 +45,10 @@ export function MarketingHeader() {
   return (
     <header
       className={cn(
-        'fixed inset-x-0 top-0 z-50 h-[68px] transition-colors duration-[180ms] ease-out',
-        scrolled ? 'border-b border-night-line bg-night-950/88 backdrop-blur-md' : 'border-b border-transparent',
+        'fixed inset-x-0 top-0 z-50 h-[68px] border-b bg-night-950 transition-colors duration-[180ms] ease-out',
+        // Only the hairline still depends on scroll: it separates the bar from
+        // content passing beneath it, and at rest there is nothing to separate.
+        scrolled ? 'border-night-line' : 'border-transparent',
       )}
     >
       <div className="mx-auto flex h-full max-w-[1400px] items-center justify-between gap-6 px-5 sm:px-8">

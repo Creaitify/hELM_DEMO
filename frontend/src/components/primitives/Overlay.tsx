@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/cn';
 import { IconButton } from './Button';
 import { IconClose } from '@/components/icons';
@@ -63,6 +64,22 @@ function useOverlayBehaviour(open: boolean, onClose: () => void, closeOnEscape: 
   return containerRef;
 }
 
+/**
+ * Overlays are painted from <body>, never from where they were opened.
+ *
+ * `backdrop-filter` makes an element a containing block for `position: fixed`
+ * descendants. The scope bar carries `backdrop-blur-md`, so the account-scope
+ * sheet was laid out against that 62px strip instead of the viewport and
+ * arrived clipped to its own footer. Portalling removes the whole class of
+ * bug rather than un-blurring one bar.
+ */
+function OverlayPortal({ children }: { children: ReactNode }) {
+  // Every overlay opens from client state, so `document` exists by the time
+  // one is asked to render; the guard is only for a stray server pass.
+  if (typeof document === 'undefined') return null;
+  return createPortal(children, document.body);
+}
+
 type OverlayProps = {
   open: boolean;
   onClose: () => void;
@@ -93,48 +110,50 @@ export function Drawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90]">
-      <button
-        type="button"
-        aria-label="Close"
-        tabIndex={-1}
-        onClick={handleBackdrop}
-        className="anim-fade absolute inset-0 cursor-default bg-night-950/38 backdrop-blur-[2px]"
-      />
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
-        tabIndex={-1}
-        className={cn(
-          'anim-drawer-in absolute inset-x-0 bottom-0 top-0 flex flex-col bg-surface shadow-lift-lg outline-none',
-          'sm:left-auto sm:right-0 sm:w-[min(560px,94vw)] sm:border-l sm:border-line',
-          className,
-        )}
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
-          <div className="min-w-0">
-            <h2 id={titleId} className="text-[18px] font-semibold leading-tight text-ink-950">
-              {title}
-            </h2>
-            {description ? (
-              <p id={descriptionId} className="mt-1 text-[13px] leading-[19px] text-ink-500">
-                {description}
-              </p>
-            ) : null}
-          </div>
-          <IconButton label="Close" onClick={onClose} className="-mr-2 -mt-1">
-            <IconClose size={19} />
-          </IconButton>
-        </header>
-        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
-        {footer ? (
-          <footer className="safe-b border-t border-line bg-surface-subtle px-5 py-4 sm:px-6">{footer}</footer>
-        ) : null}
+    <OverlayPortal>
+      <div className="fixed inset-0 z-[90]">
+        <button
+          type="button"
+          aria-label="Close"
+          tabIndex={-1}
+          onClick={handleBackdrop}
+          className="anim-fade absolute inset-0 cursor-default bg-night-950/38 backdrop-blur-[2px]"
+        />
+        <div
+          ref={ref}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={description ? descriptionId : undefined}
+          tabIndex={-1}
+          className={cn(
+            'anim-drawer-in absolute inset-x-0 bottom-0 top-0 flex flex-col bg-surface shadow-lift-lg outline-none',
+            'sm:left-auto sm:right-0 sm:w-[min(560px,94vw)] sm:border-l sm:border-line',
+            className,
+          )}
+        >
+          <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-[18px] font-semibold leading-tight text-ink-950">
+                {title}
+              </h2>
+              {description ? (
+                <p id={descriptionId} className="mt-1 text-[13px] leading-[19px] text-ink-500">
+                  {description}
+                </p>
+              ) : null}
+            </div>
+            <IconButton label="Close" onClick={onClose} className="-mr-2 -mt-1">
+              <IconClose size={19} />
+            </IconButton>
+          </header>
+          <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
+          {footer ? (
+            <footer className="safe-b border-t border-line bg-surface-subtle px-5 py-4 sm:px-6">{footer}</footer>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }
 
@@ -156,50 +175,52 @@ export function Sheet({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[95]">
-      <button
-        type="button"
-        aria-label="Close"
-        tabIndex={-1}
-        onClick={onClose}
-        className="anim-fade absolute inset-0 cursor-default bg-night-950/42 backdrop-blur-[2px]"
-      />
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
-        tabIndex={-1}
-        className={cn(
-          'anim-sheet-up absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-editorial bg-surface shadow-lift-lg outline-none',
-          className,
-        )}
-      >
-        <div className="flex justify-center pt-3">
-          <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden="true" />
-        </div>
-        <header className="flex items-start justify-between gap-4 px-5 pb-4 pt-3">
-          <div className="min-w-0">
-            <h2 id={titleId} className="text-[17px] font-semibold text-ink-950">
-              {title}
-            </h2>
-            {description ? (
-              <p id={descriptionId} className="mt-1 text-[13px] text-ink-500">
-                {description}
-              </p>
-            ) : null}
+    <OverlayPortal>
+      <div className="fixed inset-0 z-[95]">
+        <button
+          type="button"
+          aria-label="Close"
+          tabIndex={-1}
+          onClick={onClose}
+          className="anim-fade absolute inset-0 cursor-default bg-night-950/42 backdrop-blur-[2px]"
+        />
+        <div
+          ref={ref}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={description ? descriptionId : undefined}
+          tabIndex={-1}
+          className={cn(
+            'anim-sheet-up absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-editorial bg-surface shadow-lift-lg outline-none',
+            className,
+          )}
+        >
+          <div className="flex justify-center pt-3">
+            <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden="true" />
           </div>
-          <IconButton label="Close" onClick={onClose} className="-mr-2 -mt-1">
-            <IconClose size={19} />
-          </IconButton>
-        </header>
-        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto border-t border-line px-5 py-4">
-          {children}
+          <header className="flex items-start justify-between gap-4 px-5 pb-4 pt-3">
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-[17px] font-semibold text-ink-950">
+                {title}
+              </h2>
+              {description ? (
+                <p id={descriptionId} className="mt-1 text-[13px] text-ink-500">
+                  {description}
+                </p>
+              ) : null}
+            </div>
+            <IconButton label="Close" onClick={onClose} className="-mr-2 -mt-1">
+              <IconClose size={19} />
+            </IconButton>
+          </header>
+          <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto border-t border-line px-5 py-4">
+            {children}
+          </div>
+          {footer ? <footer className="safe-b border-t border-line bg-surface-subtle px-5 py-4">{footer}</footer> : null}
         </div>
-        {footer ? <footer className="safe-b border-t border-line bg-surface-subtle px-5 py-4">{footer}</footer> : null}
       </div>
-    </div>
+    </OverlayPortal>
   );
 }
 
@@ -221,41 +242,43 @@ export function Dialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-6">
-      <button
-        type="button"
-        aria-label="Close"
-        tabIndex={-1}
-        onClick={onClose}
-        className="anim-fade absolute inset-0 cursor-default bg-night-950/46 backdrop-blur-[2px]"
-      />
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
-        tabIndex={-1}
-        className={cn(
-          'anim-scale-in relative w-full max-w-[520px] rounded-t-editorial bg-surface p-6 shadow-lift-lg outline-none sm:rounded-card',
-          className,
-        )}
-      >
-        <h2 id={titleId} className="pr-8 text-[19px] font-semibold leading-snug text-ink-950">
-          {title}
-        </h2>
-        {description ? (
-          <p id={descriptionId} className="mt-2 text-[14px] leading-[22px] text-ink-700">
-            {description}
-          </p>
-        ) : null}
-        <IconButton label="Close" onClick={onClose} size="sm" className="absolute right-4 top-4">
-          <IconClose size={18} />
-        </IconButton>
-        <div className="mt-4">{children}</div>
-        {footer ? <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div> : null}
+    <OverlayPortal>
+      <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-6">
+        <button
+          type="button"
+          aria-label="Close"
+          tabIndex={-1}
+          onClick={onClose}
+          className="anim-fade absolute inset-0 cursor-default bg-night-950/46 backdrop-blur-[2px]"
+        />
+        <div
+          ref={ref}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={description ? descriptionId : undefined}
+          tabIndex={-1}
+          className={cn(
+            'anim-scale-in relative w-full max-w-[520px] rounded-t-editorial bg-surface p-6 shadow-lift-lg outline-none sm:rounded-card',
+            className,
+          )}
+        >
+          <h2 id={titleId} className="pr-8 text-[19px] font-semibold leading-snug text-ink-950">
+            {title}
+          </h2>
+          {description ? (
+            <p id={descriptionId} className="mt-2 text-[14px] leading-[22px] text-ink-700">
+              {description}
+            </p>
+          ) : null}
+          <IconButton label="Close" onClick={onClose} size="sm" className="absolute right-4 top-4">
+            <IconClose size={18} />
+          </IconButton>
+          <div className="mt-4">{children}</div>
+          {footer ? <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div> : null}
+        </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }
 

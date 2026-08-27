@@ -6,13 +6,14 @@ import type { CampaignSummary, CreativeSummary, Evidence, Finding, Recommendatio
 import { ArcBottlePoster, type PosterVariant } from '@/components/brand/ArcBottlePoster';
 import { MetricChart, SERIES_COLORS } from '@/components/data/MetricChart';
 import { EvidenceDrawer } from '@/components/data/EvidenceDrawer';
+import { CampaignDot } from '@/components/data/CampaignTag';
 import { FindingCard } from '@/components/data/FindingCard';
 import { Disclosure, Tabs } from '@/components/primitives/Controls';
 import { DeltaChip, StatusBadge } from '@/components/primitives/Status';
 import { EmptyState, SectionHeading } from '@/components/primitives/States';
 import { IconIntelligence, ProviderMark } from '@/components/icons';
 import { formatDelta, formatMoney, formatNumber, formatPercent } from '@/lib/format';
-import { deltaSemantic, formatMetric } from '@/lib/metrics';
+import { deltaSemantic, findingTrend, formatMetric } from '@/lib/metrics';
 import { routes } from '@/lib/routes';
 import { cn } from '@/lib/cn';
 
@@ -27,6 +28,7 @@ export function CampaignDetail({
   spendSeries,
   cpaSeries,
   workspaceSlug,
+  runIdByFinding = {},
 }: {
   campaign: CampaignSummary;
   creatives: CreativeSummary[];
@@ -36,6 +38,8 @@ export function CampaignDetail({
   spendSeries: SeriesPoint[];
   cpaSeries: SeriesPoint[];
   workspaceSlug: string;
+  /** The run that produced each finding, so "investigate" reopens it. */
+  runIdByFinding?: Record<string, string>;
 }) {
   const [tab, setTab] = useState('overview');
   const [openEvidenceId, setOpenEvidenceId] = useState<string | null>(null);
@@ -260,12 +264,18 @@ export function CampaignDetail({
                 <FindingCard
                   key={finding.id}
                   finding={finding}
+                  workspaceSlug={workspaceSlug}
                   recommendation={recommendations.find((rec) => rec.findingId === finding.id)}
                   accountNames={[
                     { id: campaign.accountId, name: campaign.accountName, provider: campaign.provider },
                   ]}
+                  trend={findingTrend(finding, evidence)}
                   onOpenEvidence={(id) => setOpenEvidenceId(id)}
-                  investigateHref={routes.run(workspaceSlug, 'run_0824_cpa')}
+                  investigateHref={
+                    runIdByFinding[finding.id]
+                      ? routes.run(workspaceSlug, runIdByFinding[finding.id])
+                      : routes.intelligence(workspaceSlug)
+                  }
                 />
               ))}
             </div>
@@ -277,6 +287,7 @@ export function CampaignDetail({
         evidence={activeEvidence}
         open={Boolean(activeEvidence)}
         onClose={() => setOpenEvidenceId(null)}
+        fullRecordHref={activeEvidence ? routes.evidence(workspaceSlug, activeEvidence.id) : undefined}
       />
     </div>
   );
@@ -314,7 +325,9 @@ export function CampaignIdentity({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {/* The same dot this campaign carries on the briefing and in the list. */}
       <span className="inline-flex items-center gap-2 text-[13px] text-ink-500">
+        <CampaignDot campaignId={campaign.id} size={9} />
         <ProviderMark provider={campaign.provider} size={16} />
         {campaign.accountName}
       </span>

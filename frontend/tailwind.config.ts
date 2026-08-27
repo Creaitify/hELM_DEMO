@@ -51,6 +51,8 @@ const config: Config = {
         warn: { DEFAULT: 'var(--warn)', soft: 'var(--warn-soft)' },
         bad: { DEFAULT: 'var(--bad)', soft: 'var(--bad-soft)' },
         info: { DEFAULT: 'var(--info)', soft: 'var(--info-soft)' },
+        urgent: { DEFAULT: 'var(--urgent)', soft: 'var(--urgent-soft)' },
+        chip: { neutral: 'var(--chip-neutral)', line: 'var(--chip-neutral-line)' },
         google: 'var(--google)',
         meta: 'var(--meta)',
       },

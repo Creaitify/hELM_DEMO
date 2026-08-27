@@ -8,6 +8,7 @@ import { Button } from '@/components/primitives/Button';
 import { SearchField, SegmentedControl } from '@/components/primitives/Controls';
 import { DeltaChip, StatusBadge } from '@/components/primitives/Status';
 import { Sparkline } from '@/components/data/Charts';
+import { CampaignDot } from '@/components/data/CampaignTag';
 import { Drawer } from '@/components/primitives/Overlay';
 import { EmptyState } from '@/components/primitives/States';
 import { formatDelta, formatMoney, formatNumber, formatPercent } from '@/lib/format';
@@ -197,7 +198,8 @@ export function CampaignExplorer({
                             href={routes.campaign(workspaceSlug, campaign.id)}
                             className="group flex items-start gap-2.5"
                           >
-                            <span className="mt-[3px] shrink-0">
+                            <span className="mt-[3px] flex shrink-0 items-center gap-1.5">
+                              <CampaignDot campaignId={campaign.id} />
                               <ProviderMark provider={campaign.provider} size={16} />
                             </span>
                             <span className="min-w-0">
@@ -299,7 +301,8 @@ export function CampaignExplorer({
               <li key={campaign.id} className="s-panel px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-2.5">
-                    <span className="mt-[3px] shrink-0">
+                    <span className="mt-[3px] flex shrink-0 items-center gap-1.5">
+                      <CampaignDot campaignId={campaign.id} />
                       <ProviderMark provider={campaign.provider} size={16} />
                     </span>
                     <div className="min-w-0">

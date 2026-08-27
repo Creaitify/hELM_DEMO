@@ -1,4 +1,4 @@
-import type { MetricDefinition, MetricKey, MetricValue } from '@/contracts';
+import type { Evidence, Finding, MetricDefinition, MetricKey, MetricValue } from '@/contracts';
 import { formatMoney, formatMultiple, formatNumber, formatPercent } from './format';
 
 /**
@@ -172,6 +172,39 @@ export function formatMetric(
     default:
       return formatNumber(value, { compact });
   }
+}
+
+/**
+ * Scale a figure only once it stops being readable at full precision.
+ *
+ * A dense row cannot afford ₹7,64,000, but ₹2.4K throws away the digits that
+ * make a CPA worth reading. One lakh is where the tradeoff flips.
+ */
+export function formatMetricDense(
+  value: number | null | undefined,
+  key: MetricKey,
+  currency?: string,
+): string {
+  const compact = typeof value === 'number' && Math.abs(value) >= 1e5;
+  return formatMetric(value, key, { currency, compact });
+}
+
+/**
+ * The leading metric's series, taken from the evidence behind the finding.
+ *
+ * Returns nothing when the evidence carries no series for that metric. A shape
+ * invented to fill the slot would be the one dishonest mark on the card.
+ */
+export function findingTrend(finding: Finding, evidence: Evidence[]): number[] | undefined {
+  const leading = finding.metricHighlights[0]?.key;
+  const records = finding.evidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is Evidence => Boolean(entry?.series));
+  const match = records.find((entry) => entry.series?.metric === leading) ?? records[0];
+  const values = (match?.series?.points ?? [])
+    .map((point) => point.value)
+    .filter((value): value is number => value !== null);
+  return values.length > 1 ? values : undefined;
 }
 
 export type DeltaSemantic = 'favorable' | 'unfavorable' | 'neutral';

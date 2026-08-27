@@ -50,6 +50,8 @@ export const routes = {
   campaign: (slug: string, id: string, q?: AnalyticQuery) => `/w/${slug}/campaigns/${id}${qs(q)}`,
   intelligence: (slug: string, q?: AnalyticQuery) => `/w/${slug}/intelligence${qs(q)}`,
   run: (slug: string, id: string, q?: AnalyticQuery) => `/w/${slug}/intelligence/${id}${qs(q)}`,
+  /** Evidence is a durable address, not a drawer that closes with the page. */
+  evidence: (slug: string, id: string) => `/w/${slug}/evidence/${id}`,
   library: (slug: string, q?: AnalyticQuery) => `/w/${slug}/library${qs(q)}`,
   studio: (slug: string, q?: AnalyticQuery) => `/w/${slug}/library/studio${qs(q)}`,
   settings: (slug: string, tab?: string) => `/w/${slug}/settings${tab ? `?tab=${tab}` : ''}`,

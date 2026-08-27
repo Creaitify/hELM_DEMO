@@ -40,6 +40,14 @@
   --action-400: #f7aa8e;
   --action-ink: #10131c;
 
+  /* ---- Chips ----
+     A neutral chip needs a ground of its own. Against a white card the sunk
+     surface was close enough to white that the chip read as loose text rather
+     than an object, so it gets a genuine grey fill and a hairline a step
+     darker than the general line colour. */
+  --chip-neutral: #e5e8ef;
+  --chip-neutral-line: #c9cfdd;
+
   /* ---- Semantic ---- */
   --good: #0a7f59;
   --good-soft: #e7f3ee;
@@ -49,6 +57,10 @@
   --bad-soft: #fbe9ed;
   --info: #2f43c9;
   --info-soft: #eff1fe;
+  /* Act-today red. Warmer and brighter than --bad so the two never blur:
+     bad marks a decision-grade finding, urgent marks a clock running out. */
+  --urgent: #c93318;
+  --urgent-soft: #fdece8;
 
   /* ---- Provider identity (marks and identity details only) ---- */
   --google: #4285f4;

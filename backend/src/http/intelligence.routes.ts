@@ -302,4 +302,42 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       return sendError(reply, error);
     }
   });
+
+  /**
+   * One evidence record, addressable on its own.
+   *
+   * Evidence used to be reachable only through the drawer that opened beside a
+   * finding, which meant it could be read but never linked to, cited in a
+   * message, or opened from a bookmark. The citing findings travel with it so
+   * the record arrives with its context rather than as a loose table.
+   */
+  app.get<{ Params: { slug: string; id: string } }>(
+    '/api/workspaces/:slug/evidence/:id',
+    async (request, reply) => {
+      try {
+        const context = await requireWorkspace(request, request.params.slug, 'intelligence.read');
+        const evidence = await repo.getEvidence(request.params.id);
+        if (!evidence) throw notFound('That evidence record no longer exists.');
+
+        const findings = (await repo.listFindings(context.workspace.id)).filter((finding) =>
+          finding.evidenceIds.includes(evidence.id),
+        );
+        const accountIds = new Set([
+          ...evidence.basis.accountIds,
+          ...findings.flatMap((finding) => finding.sourceAccountIds),
+        ]);
+        const accounts = (await repo.listAccounts(context.workspace.id)).filter((account) =>
+          accountIds.has(account.id),
+        );
+        const runs = await repo.listRuns(context.workspace.id);
+        const citingRuns = runs.filter((run) =>
+          run.findingIds.some((id) => findings.some((finding) => finding.id === id)),
+        );
+
+        return { evidence, findings, accounts, runs: citingRuns };
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 }

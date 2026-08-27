@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import type { TimelineEvent } from '@/contracts';
 import { PageShell } from '@/components/shell/AppShell';
 import { WorkspacePlaceholder, isPopulated } from '@/features/briefing/WorkspacePlaceholder';
 import { Scoreline } from '@/components/data/Scoreline';
 import { RankedBars, ShareBar } from '@/components/data/Charts';
 import { InlineNotice, SectionHeading } from '@/components/primitives/States';
 import { StatusBadge } from '@/components/primitives/Status';
+import { Disclosure } from '@/components/primitives/Controls';
 import { DecisionBrief } from '@/features/briefing/DecisionBrief';
 import { PerformanceMovement } from '@/features/briefing/PerformanceMovement';
 import { IconArrowRight, IconShare, ProviderMark } from '@/components/icons';
@@ -13,7 +15,7 @@ import { LinkButton } from '@/components/primitives/Button';
 import { DownloadMenu } from '@/features/intelligence/DownloadMenu';
 import { routes } from '@/lib/routes';
 import { formatDateRange, formatMoney, formatRelative } from '@/lib/format';
-import { getBriefing, getWorkspace } from '@/services/http/queries';
+import { getBriefing, getEvidenceList, getIntelligence, getWorkspace } from '@/services/http/queries';
 import {
   COMPARE_END,
   COMPARE_START,
@@ -29,6 +31,7 @@ import {
   findings as sampleFindings,
   partialNotice,
   recommendations,
+  runs as sampleRuns,
   scoreline as sampleScoreline,
   seriesByMetric,
   timeline as sampleTimeline,
@@ -36,6 +39,19 @@ import {
 } from '@/services/mock';
 
 export const metadata: Metadata = { title: 'Briefing' };
+
+/**
+ * Did this event move a figure on this page?
+ *
+ * Spend, creative and definition changes all land in the numbers above.
+ * A degraded sync does too, because an excluded account changes every blended
+ * total. A healthy sync and a person's own decision do not, so they wait
+ * behind the disclosure rather than padding the list.
+ */
+function movedANumber(event: TimelineEvent): boolean {
+  if (event.kind === 'spend' || event.kind === 'creative' || event.kind === 'definition') return true;
+  return event.kind === 'sync' && event.tone !== 'good';
+}
 
 export default async function BriefingPage({
   params,
@@ -49,9 +65,11 @@ export default async function BriefingPage({
 
   // The graph is the source of truth for what is on the account right now;
   // the derived series stay with the fixtures until MetricDay is populated.
-  const [live, workspaceRead] = await Promise.all([
+  const [live, workspaceRead, intelligence, evidenceRead] = await Promise.all([
     getBriefing(workspaceSlug),
     getWorkspace(workspaceSlug),
+    getIntelligence(workspaceSlug),
+    getEvidenceList(workspaceSlug),
   ]);
 
   const scoreline = live.ok ? live.data.scoreline : sampleScoreline;
@@ -60,14 +78,28 @@ export default async function BriefingPage({
   const timeline = live.ok ? live.data.timeline : sampleTimeline;
   const accounts = workspaceRead.ok ? workspaceRead.data.accounts : sampleAccounts;
   const findings = live.ok && live.data.findings.length ? live.data.findings : sampleFindings;
-  const evidence = sampleEvidence;
+  const runs = intelligence.ok ? intelligence.data.runs : sampleRuns;
+  // Evidence has to come from wherever the findings did. Fixtures behind live
+  // findings meant every id missed and the quick look silently did nothing.
+  const evidence =
+    evidenceRead.ok && evidenceRead.data.evidence.length ? evidenceRead.data.evidence : sampleEvidence;
   const creatives = sampleCreatives;
+
+  /** Which run produced each finding, so "investigate" reopens it. */
+  const runIdByFinding: Record<string, string> = {};
+  for (const run of runs) {
+    for (const findingId of run.findingIds) runIdByFinding[findingId] ??= run.id;
+  }
 
   const decisionFindings = findings.filter((finding) => finding.severity === 'decision');
   const watchFindings = findings.filter((finding) => finding.severity === 'watch');
   const stableFindings = findings.filter((finding) => finding.severity === 'stable');
 
+  const morningRunId = runIdByFinding[decisionFindings[0]?.id] ?? runs[0]?.id;
   const windowLabel = formatDateRange(WINDOW_START, WINDOW_END);
+
+  const moved = timeline.filter(movedANumber);
+  const rest = timeline.filter((event) => !movedANumber(event));
 
   const budgetOpportunities = blendedCampaigns
     .filter((campaign) => (campaign.impressionShareLostToBudget ?? 0) > 0.03)
@@ -76,6 +108,10 @@ export default async function BriefingPage({
   const fatigued = creatives
     .filter((creative) => creative.hookRate !== null)
     .sort((a, b) => (a.hookRate ?? 1) - (b.hookRate ?? 1));
+
+  const basisAccounts = accounts.filter((account) =>
+    ['acct_g_search', 'acct_g_pmax', 'acct_m_prospect'].includes(account.id),
+  );
 
   return (
     <PageShell
@@ -98,18 +134,20 @@ export default async function BriefingPage({
               { format: 'json', label: 'JSON', hint: 'The whole snapshot' },
             ]}
           />
-          <LinkButton
-            href={routes.run(workspaceSlug, 'run_0824_cpa')}
-            variant="neutral"
-            size="compact"
-            leading={<IconShare size={16} />}
-          >
-            Open this morning&apos;s run
-          </LinkButton>
+          {morningRunId ? (
+            <LinkButton
+              href={routes.run(workspaceSlug, morningRunId)}
+              variant="neutral"
+              size="compact"
+              leading={<IconShare size={16} />}
+            >
+              Open this morning&apos;s run
+            </LinkButton>
+          ) : null}
         </>
       }
     >
-      <div className="space-y-10">
+      <div className="space-y-9">
         <Scoreline
           metrics={scoreline}
           unavailable={{ label: unavailableMetric.label, reason: unavailableMetric.reason }}
@@ -136,6 +174,8 @@ export default async function BriefingPage({
           recommendations={recommendations}
           evidence={evidence}
           accounts={accounts}
+          campaigns={blendedCampaigns}
+          runIdByFinding={runIdByFinding}
         />
 
         {/* Performance movement */}
@@ -146,10 +186,7 @@ export default async function BriefingPage({
             hint="Material changes are annotated on the series rather than explained in a legend."
           />
           <div className="mt-5 space-y-5">
-            <PerformanceMovement
-              seriesByMetric={seriesByMetric}
-              windowLabel={windowLabel}
-            />
+            <PerformanceMovement seriesByMetric={seriesByMetric} windowLabel={windowLabel} />
 
             <div className="grid gap-5 lg:grid-cols-3">
               <div className="s-panel px-5 py-5">
@@ -163,10 +200,6 @@ export default async function BriefingPage({
                     sub: `${(channel.share * 100).toFixed(1)}% of spend · ${channel.deltaShare > 0 ? '+' : '−'}${Math.abs(channel.deltaShare * 100).toFixed(1)}pt`,
                   }))}
                 />
-                <p className="mt-4 border-t border-line pt-3 text-[12px] leading-[18px] text-ink-400">
-                  Meta took 3.8 points more of the budget than in the previous 30 days, and returned less for
-                  it.
-                </p>
               </div>
 
               <div className="s-panel px-5 py-5">
@@ -182,6 +215,7 @@ export default async function BriefingPage({
                     note: `CPA ${formatMoney(campaign.cpa, 'INR')} · ${campaign.conversions} purchases`,
                   }))}
                 />
+                {/* Kept because it states a limit of the chart, not a restatement of it. */}
                 <p className="mt-4 border-t border-line pt-3 text-[12px] leading-[18px] text-ink-400">
                   Meta does not report a comparable figure, so only Google campaigns appear here.
                 </p>
@@ -218,7 +252,7 @@ export default async function BriefingPage({
           <SectionHeading
             id="since"
             title="Since your last visit"
-            hint="Material events, in order. This is an interpretation, not the raw audit feed."
+            hint="The events that moved a figure above. Everything else is in the audit."
             action={
               <Link
                 href={routes.settings(workspaceSlug, 'audit')}
@@ -229,35 +263,25 @@ export default async function BriefingPage({
               </Link>
             }
           />
-          <ol className="s-panel mt-5 divide-y divide-line px-5 sm:px-6">
-            {timeline.map((event) => (
-              <li key={event.id} className="flex flex-wrap items-start gap-x-4 gap-y-1.5 py-4">
-                <span className="mono w-[104px] shrink-0 text-[11.5px] text-ink-400">
-                  {formatRelative(event.at, NOW_ISO)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-[14.5px] font-medium text-ink-950">{event.title}</span>
-                    <StatusBadge
-                      tone={
-                        event.tone === 'good'
-                          ? 'good'
-                          : event.tone === 'warn'
-                            ? 'warn'
-                            : event.tone === 'bad'
-                              ? 'bad'
-                              : 'neutral'
-                      }
-                      className="capitalize"
-                    >
-                      {event.kind}
-                    </StatusBadge>
-                  </span>
-                  <span className="mt-1 block text-[13.5px] leading-[20px] text-ink-500">{event.detail}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
+          <div className="s-panel mt-5 px-5 sm:px-6">
+            <ol className="divide-y divide-line">
+              {moved.map((event) => (
+                <TimelineRow key={event.id} event={event} />
+              ))}
+            </ol>
+            {rest.length > 0 ? (
+              <Disclosure
+                summary={`${rest.length} more events that changed nothing above`}
+                className="border-t border-line"
+              >
+                <ol className="divide-y divide-line">
+                  {rest.map((event) => (
+                    <TimelineRow key={event.id} event={event} />
+                  ))}
+                </ol>
+              </Disclosure>
+            ) : null}
+          </div>
         </section>
 
         {/* Data basis */}
@@ -267,10 +291,23 @@ export default async function BriefingPage({
             title="What these numbers are built on"
             hint="Every blended figure on this page uses exactly this basis."
           />
-          <div className="s-panel-subtle mt-5 grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
-            {accounts
-              .filter((account) => ['acct_g_search', 'acct_g_pmax', 'acct_m_prospect'].includes(account.id))
-              .map((account) => (
+          {/* Exclusions stay in the open: they are the part that changes what a
+              reader should conclude. The per-account detail is reference. */}
+          <ul className="mt-4 space-y-1.5">
+            {[
+              'Northstar US / Search is separated: USD and an America/New_York reporting day.',
+              'Northstar India / Retargeting is excluded from totals while its sync is 19 hours behind.',
+              'The current partial day (24 August) is excluded from every figure.',
+            ].map((line) => (
+              <li key={line} className="flex gap-2 text-[12.5px] leading-[19px] text-ink-500">
+                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-400" aria-hidden="true" />
+                {line}
+              </li>
+            ))}
+          </ul>
+          <Disclosure summary={`Account detail for the ${basisAccounts.length} blended accounts`} className="mt-2">
+            <div className="s-panel-subtle grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
+              {basisAccounts.map((account) => (
                 <div key={account.id}>
                   <p className="flex items-center gap-2 text-[13.5px] font-medium text-ink-950">
                     <ProviderMark provider={account.provider} size={15} />
@@ -294,21 +331,40 @@ export default async function BriefingPage({
                   </dl>
                 </div>
               ))}
-          </div>
-          <ul className="mt-4 space-y-1.5">
-            {[
-              'Northstar US / Search is separated: USD and an America/New_York reporting day.',
-              'Northstar India / Retargeting is excluded from totals while its sync is 19 hours behind.',
-              'The current partial day (24 August) is excluded from every figure.',
-            ].map((line) => (
-              <li key={line} className="flex gap-2 text-[12.5px] leading-[19px] text-ink-500">
-                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-400" aria-hidden="true" />
-                {line}
-              </li>
-            ))}
-          </ul>
+            </div>
+          </Disclosure>
         </section>
       </div>
     </PageShell>
+  );
+}
+
+function TimelineRow({ event }: { event: TimelineEvent }) {
+  return (
+    <li className="flex flex-wrap items-start gap-x-4 gap-y-1 py-3">
+      <span className="mono w-[104px] shrink-0 text-[11.5px] text-ink-400">
+        {formatRelative(event.at, NOW_ISO)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="text-[14px] font-medium text-ink-950">{event.title}</span>
+          <StatusBadge
+            tone={
+              event.tone === 'good'
+                ? 'good'
+                : event.tone === 'warn'
+                  ? 'warn'
+                  : event.tone === 'bad'
+                    ? 'bad'
+                    : 'neutral'
+            }
+            className="capitalize"
+          >
+            {event.kind}
+          </StatusBadge>
+        </span>
+        <span className="mt-0.5 block text-[13px] leading-[19px] text-ink-500">{event.detail}</span>
+      </span>
+    </li>
   );
 }

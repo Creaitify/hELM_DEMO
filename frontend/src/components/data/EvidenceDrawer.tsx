@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { Evidence } from '@/contracts';
 import { Drawer } from '@/components/primitives/Overlay';
 import { KindMarker } from '@/components/primitives/Status';
@@ -11,6 +12,9 @@ import { cn } from '@/lib/cn';
 /**
  * Evidence opens beside the claim: a drawer on desktop, a full-height sheet on
  * mobile. It always carries the basis that produced the numbers.
+ *
+ * This is the quick look. It closes with the page, so anything worth sending to
+ * someone else leaves through the durable record instead.
  */
 export function EvidenceDrawer({
   evidence,
@@ -19,6 +23,7 @@ export function EvidenceDrawer({
   onNext,
   index,
   total,
+  fullRecordHref,
 }: {
   evidence: Evidence | null;
   open: boolean;
@@ -26,6 +31,7 @@ export function EvidenceDrawer({
   onNext?: () => void;
   index?: number;
   total?: number;
+  fullRecordHref?: string;
 }) {
   if (!evidence) return null;
 
@@ -42,7 +48,15 @@ export function EvidenceDrawer({
           <p className="mono text-[11.5px] text-ink-400">
             {formatDateRange(evidence.basis.startDateInclusive, evidence.basis.endDateInclusive)}
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {fullRecordHref ? (
+              <Link
+                href={fullRecordHref}
+                className="inline-flex h-11 items-center rounded-control px-3 text-[13px] text-helm-600 underline-offset-2 transition-colors hover:bg-surface-sunk hover:underline md:h-9"
+              >
+                View full evidence
+              </Link>
+            ) : null}
             <Button variant="quiet" size="compact" onClick={onClose}>
               Close
             </Button>

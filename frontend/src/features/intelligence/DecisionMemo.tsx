@@ -12,6 +12,7 @@ import { SectionHeading } from '@/components/primitives/States';
 import { IconCheck, IconDownload, IconShare } from '@/components/icons';
 import { DownloadMenu } from './DownloadMenu';
 import { formatClock, formatRelative } from '@/lib/format';
+import { findingTrend } from '@/lib/metrics';
 import { routes } from '@/lib/routes';
 import { api, describeError } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -175,9 +176,11 @@ export function DecisionMemo({
               <FindingCard
                 key={finding.id}
                 finding={finding}
+                workspaceSlug={workspaceSlug}
                 accountNames={accountsFor(finding)}
+                trend={findingTrend(finding, evidence)}
                 onOpenEvidence={(id) => setOpenEvidenceId(id)}
-                investigateHref={routes.intelligence(workspaceSlug)}
+                investigateHref={routes.run(workspaceSlug, run.id)}
               />
             ))}
           </div>
@@ -335,6 +338,7 @@ export function DecisionMemo({
         evidence={activeEvidence}
         open={Boolean(activeEvidence)}
         onClose={() => setOpenEvidenceId(null)}
+        fullRecordHref={activeEvidence ? routes.evidence(workspaceSlug, activeEvidence.id) : undefined}
       />
     </div>
   );

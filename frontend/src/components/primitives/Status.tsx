@@ -11,15 +11,25 @@ import {
   IconWarning,
 } from '@/components/icons';
 
-export type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'info' | 'iris';
+/**
+ * `bad` and `urgent` are not synonyms. `bad` marks a decision-grade finding —
+ * something that deserves a person's judgment this week. `urgent` marks a
+ * clock: an item that stops being actionable if it waits. Spending `urgent`
+ * on anything else spends the one tone that still makes a reader look up.
+ */
+export type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'urgent' | 'info' | 'iris';
 
 const toneClasses: Record<Tone, string> = {
-  neutral: 'bg-surface-sunk text-ink-700 border-line',
-  good: 'bg-good-soft text-good border-good/25',
-  warn: 'bg-warn-soft text-warn border-warn/25',
+  // A chip is an object, so it gets a ground and an edge rather than borrowing
+  // the card's. Semantic tones stay tints — the fill locates the chip, the
+  // text colour and label carry the meaning.
+  neutral: 'bg-chip-neutral text-ink-700 border-chip-line',
+  good: 'bg-good-soft text-good border-good/20',
+  warn: 'bg-warn-soft text-warn border-warn/20',
   bad: 'bg-bad-soft text-bad border-bad/25',
-  info: 'bg-info-soft text-info border-info/25',
-  iris: 'bg-[#F0ECFF] text-iris-500 border-iris-500/25',
+  urgent: 'bg-urgent-soft text-urgent border-urgent/35',
+  info: 'bg-info-soft text-info border-info/20',
+  iris: 'bg-[#F0ECFF] text-iris-500 border-iris-500/20',
 };
 
 /** Status always carries icon + label + text. Never colour alone. */
@@ -61,7 +71,9 @@ export function Pill({
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] leading-none',
-        onNight ? 'border-night-line text-night-muted' : 'border-line text-ink-500',
+        onNight
+          ? 'border-night-line text-night-muted'
+          : 'border-chip-line bg-chip-neutral/55 text-ink-500',
         className,
       )}
     >

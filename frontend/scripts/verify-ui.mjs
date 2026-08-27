@@ -45,23 +45,27 @@ async function discover() {
     return response.json();
   };
 
-  const [intelligence, campaigns] = await Promise.all([
+  const [intelligence, campaigns, evidence] = await Promise.all([
     read(`/api/workspaces/${WORKSPACE}/intelligence`),
     read(`/api/workspaces/${WORKSPACE}/campaigns`),
+    read(`/api/workspaces/${WORKSPACE}/evidence`),
   ]);
 
   // A completed run shows the whole workflow; a queued one would show nothing.
   const run =
     intelligence.runs.find((entry) => entry.stage === 'complete') ?? intelligence.runs[0];
   const campaign = campaigns.campaigns[0];
+  // A record with rows is the only one that proves the page renders a record.
+  const record = evidence.evidence.find((entry) => entry.rows?.length) ?? evidence.evidence[0];
 
   if (!run) throw new Error('No runs in the workspace — start one before verifying.');
   if (!campaign) throw new Error('No campaigns in the workspace — seed the graph first.');
+  if (!record) throw new Error('No evidence in the workspace — seed the graph first.');
 
-  return { runId: run.id, campaignId: campaign.id };
+  return { runId: run.id, campaignId: campaign.id, evidenceId: record.id };
 }
 
-function routes({ runId, campaignId }) {
+function routes({ runId, campaignId, evidenceId }) {
   const w = `/w/${WORKSPACE}`;
   return [
     { name: 'landing', path: '/', heading: /See what moved/i, shell: false },
@@ -73,6 +77,7 @@ function routes({ runId, campaignId }) {
     { name: 'campaign-detail', path: `${w}/campaigns/${campaignId}`, heading: /.+/ },
     { name: 'intelligence', path: `${w}/intelligence`, heading: /^Intelligence$/ },
     { name: 'run', path: `${w}/intelligence/${runId}`, heading: /.+/ },
+    { name: 'evidence', path: `${w}/evidence/${evidenceId}`, heading: /.+/ },
     { name: 'library', path: `${w}/library`, heading: /^Library$/ },
     { name: 'studio', path: `${w}/library/studio`, heading: /^Image studio$/ },
     { name: 'connections', path: `${w}/connections`, heading: /^Connections$/ },

@@ -153,6 +153,23 @@ export const getRun = (slug: string, id: string) =>
 
 export const getFleet = (slug: string) => apiGet<FleetSnapshot>(`/api/workspaces/${slug}/fleet`);
 
+export type EvidenceListResponse = { evidence: Evidence[] };
+
+/** Every record in the workspace, for surfaces that resolve ids in place. */
+export const getEvidenceList = (slug: string) =>
+  apiGet<EvidenceListResponse>(`/api/workspaces/${slug}/evidence`);
+
+export type EvidenceRecordResponse = {
+  evidence: Evidence;
+  /** The findings that cite this record, so it never arrives as a loose table. */
+  findings: Finding[];
+  accounts: AdAccount[];
+  runs: IntelligenceRun[];
+};
+
+export const getEvidenceRecord = (slug: string, id: string) =>
+  apiGet<EvidenceRecordResponse>(`/api/workspaces/${slug}/evidence/${id}`);
+
 export type LibraryResponse = {
   artifacts: Artifact[];
   counts: { reports: number; creative: number };
