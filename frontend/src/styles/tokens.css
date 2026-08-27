@@ -17,36 +17,47 @@
   --night-faint: #6e7688;
 
   /* ---- Product light world ----
-     Near-neutral paper with a trace of cool. Cards are pure white so the
-     one saturated accent does the talking rather than a tinted ground. */
-  --canvas: #ecedf2;
-  --surface: #ffffff;
-  --surface-subtle: #f6f7fa;
-  --surface-sunk: #eef0f5;
-  --line: #e2e4ec;
-  --line-strong: #c6cad8;
-  --ink-950: #10131c;
-  --ink-700: #343b4b;
-  --ink-500: #656d80;
-  --ink-400: #8b92a3;
+     Monochrome paper, no tint in the greys at all. Every surface, line and
+     level of ink is a step on one neutral ramp, so the single warm accent is
+     the only colour in the room and never has to compete with a blue.
 
-  /* ---- Brand and action ---- */
-  --helm-50: #f1f3ff;
-  --helm-500: #2f43c9;
-  --helm-600: #22318f;
-  --helm-100: #dee4fb;
-  --iris-500: #7c5bff;
-  --action-200: #ffddd0;
-  --action-400: #f7aa8e;
-  --action-ink: #10131c;
+     The public pages keep the original palette — see .pub-world below. */
+  --canvas: #eceef1;
+  --surface: #ffffff;
+  --surface-subtle: #f9fafb;
+  --surface-sunk: #f3f4f6;
+  --line: #e5e7eb;
+  --line-strong: #d1d5db;
+  --ink-950: #111827;
+  --ink-700: #374151;
+  --ink-500: #6b7280;
+  --ink-400: #9ca3af;
+
+  /* ---- Brand and action ----
+     Primary is the darkest ink rather than a hue: a near-black control reads
+     as the serious action on a white card, and leaves the accent free to mean
+     one thing. Amber carries hover, focus and selection — the warmth arrives
+     on contact, not at rest.
+
+     Amber is never a background for white text; at #f59e0b that pairing fails
+     contrast badly. Wherever it fills, the ink on top is --action-ink. */
+  --helm-50: #fffbeb;
+  --helm-100: #fef3c7;
+  --helm-500: #111827;
+  --helm-600: #111827;
+  --helm-700: #f59e0b;
+  --iris-500: #f59e0b;
+  --action-200: #fde68a;
+  --action-400: #f59e0b;
+  --action-ink: #111827;
 
   /* ---- Chips ----
      A neutral chip needs a ground of its own. Against a white card the sunk
      surface was close enough to white that the chip read as loose text rather
      than an object, so it gets a genuine grey fill and a hairline a step
      darker than the general line colour. */
-  --chip-neutral: #e5e8ef;
-  --chip-neutral-line: #c9cfdd;
+  --chip-neutral: #f3f4f6;
+  --chip-neutral-line: #e5e7eb;
 
   /* ---- Semantic ---- */
   --good: #0a7f59;
@@ -55,8 +66,8 @@
   --warn-soft: #faf1e3;
   --bad: #c31f3c;
   --bad-soft: #fbe9ed;
-  --info: #2f43c9;
-  --info-soft: #eff1fe;
+  --info: #111827;
+  --info-soft: #f3f4f6;
   /* Act-today red. Warmer and brighter than --bad so the two never blur:
      bad marks a decision-grade finding, urgent marks a clock running out. */
   --urgent: #c93318;
@@ -70,7 +81,8 @@
   --meta: #0866ff;
 
   /* ---- Focus ---- */
-  --focus-ring: rgba(47, 67, 201, 0.40);
+  /* Focus is the accent's clearest job: the one moment colour means "here". */
+  --focus-ring: rgba(245, 158, 11, 0.55);
   --focus-ring-dark: rgba(160, 184, 255, 0.55);
 
   /* ---- Geometry ---- */
@@ -108,4 +120,44 @@
   --helm-hairline: var(--line);
   --helm-text: var(--ink-950);
   --helm-text-muted: var(--ink-500);
+}
+
+/* ============================================================
+   The public world keeps the palette it shipped with.
+
+   The landing page and sign-in are a different argument to a different
+   reader, and they were signed off as they are. Rather than exempt them
+   with a hundred overrides, they restore the original product tokens for
+   their own subtree — the monochrome ramp above stops at their edge.
+
+   These pages open no portalled overlay, so a subtree scope is complete
+   here in a way it would not be inside the product.
+   ============================================================ */
+.pub-world {
+  --canvas: #ecedf2;
+  --surface: #ffffff;
+  --surface-subtle: #f6f7fa;
+  --surface-sunk: #eef0f5;
+  --line: #e2e4ec;
+  --line-strong: #c6cad8;
+  --ink-950: #10131c;
+  --ink-700: #343b4b;
+  --ink-500: #656d80;
+  --ink-400: #8b92a3;
+
+  --helm-50: #f1f3ff;
+  --helm-100: #dee4fb;
+  --helm-500: #2f43c9;
+  --helm-600: #22318f;
+  --helm-700: #1a2670;
+  --iris-500: #7c5bff;
+  --action-200: #ffddd0;
+  --action-400: #f7aa8e;
+  --action-ink: #10131c;
+
+  --chip-neutral: #e5e8ef;
+  --chip-neutral-line: #c9cfdd;
+  --info: #2f43c9;
+  --info-soft: #eff1fe;
+  --focus-ring: rgba(47, 67, 201, 0.40);
 }

@@ -30,8 +30,10 @@ const sizes: Record<ButtonSize, string> = {
 const variants: Record<ButtonVariant, string> = {
   action:
     'bg-action-200 text-action-ink border border-action-400/60 hover:bg-action-400/90 hover:border-action-400 active:bg-action-400',
+  // Near-black at rest, amber on contact. The ink flips with it: white on
+  // #f59e0b fails contrast, dark ink on it clears 8:1.
   indigo:
-    'bg-helm-500 text-white border border-helm-600/40 hover:bg-helm-600 active:bg-helm-600',
+    'bg-helm-500 text-white border border-helm-500 hover:bg-helm-700 hover:text-action-ink hover:border-helm-700 active:bg-helm-700',
   neutral:
     'bg-surface text-ink-950 border border-line-strong hover:bg-surface-subtle hover:border-ink-400/60',
   quiet:

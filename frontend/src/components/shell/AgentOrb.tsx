@@ -384,7 +384,7 @@ export function AgentOrb({
                 onClick={() => void send(draft)}
                 disabled={!draft.trim() || thinking}
                 aria-label="Send"
-                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-control bg-helm-600 text-white transition-colors hover:bg-helm-700 disabled:opacity-40"
+                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-control bg-helm-600 text-white transition-colors hover:bg-helm-700 hover:text-action-ink disabled:opacity-40"
               >
                 <IconArrowRight size={16} />
               </button>
@@ -403,9 +403,9 @@ export function AgentOrb({
         aria-expanded={open}
         className={cn(
           'pointer-events-auto absolute flex items-center justify-center rounded-full text-white shadow-overlay',
-          'bg-helm-600 transition-[background-color,transform] hover:bg-helm-700',
+          'bg-helm-600 transition-[background-color,color,transform] hover:bg-helm-700 hover:text-action-ink',
           dragging ? 'scale-105 cursor-grabbing' : 'cursor-grab',
-          open && 'bg-helm-700',
+          open && 'bg-helm-700 text-action-ink',
         )}
         style={{ left: position.x, top: position.y, width: ORB, height: ORB, touchAction: 'none' }}
       >

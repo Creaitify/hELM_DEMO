@@ -40,6 +40,7 @@ const config: Config = {
           100: 'var(--helm-100)',
           500: 'var(--helm-500)',
           600: 'var(--helm-600)',
+          700: 'var(--helm-700)',
         },
         iris: { 500: 'var(--iris-500)' },
         action: {

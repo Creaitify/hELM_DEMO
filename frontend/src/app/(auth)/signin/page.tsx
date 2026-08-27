@@ -37,7 +37,7 @@ export default async function SignInPage({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
+    <div className="pub-world flex min-h-dvh flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
       {/* Dark signal field — 58% on desktop, 34–40% on mobile */}
       <section className="pub-shell on-night relative flex h-[38dvh] shrink-0 flex-col justify-between overflow-hidden px-6 pb-6 pt-6 sm:px-8 lg:h-auto lg:w-[58%] lg:flex-1 lg:px-12 lg:py-12">
         <MistField tone="dark" grid />

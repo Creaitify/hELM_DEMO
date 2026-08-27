@@ -12,7 +12,7 @@ import {
 
 export default function LandingPage() {
   return (
-    <div className="pub-shell on-night min-h-dvh">
+    <div className="pub-world pub-shell on-night min-h-dvh">
       <MarketingHeader />
       <main id="main">
         <Hero />

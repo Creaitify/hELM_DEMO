@@ -445,7 +445,7 @@ export function ImageStudio({
                 <span
                   className={cn(
                     'flex h-5 w-5 items-center justify-center rounded-full text-white transition-colors',
-                    writing ? 'bg-ink-300' : 'bg-helm-600 group-hover:bg-helm-700',
+                    writing ? 'bg-ink-300' : 'bg-helm-600 group-hover:bg-helm-700 group-hover:text-action-ink',
                   )}
                 >
                   <IconSpark size={12} />
