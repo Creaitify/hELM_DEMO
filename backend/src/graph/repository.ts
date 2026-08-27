@@ -14,6 +14,7 @@ import type {
   Finding,
   IntelligenceRun,
   Member,
+  MetricDay,
   Recommendation,
   Role,
   SessionUser,
@@ -560,4 +561,53 @@ export async function upsertTimelineEvent(workspaceId: string, event: TimelineEv
 export async function listTimeline(workspaceId: string): Promise<TimelineEvent[]> {
   const rows = await graph().neighbours<TimelineEvent>('Workspace', workspaceId, 'RECORDED', 'TimelineEvent');
   return rows.sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+
+/* -------------------------------------------------------------- metrics -- */
+
+/**
+ * Daily rows, the grain every blended figure is folded from.
+ *
+ * Keyed by (account, campaign, date), so re-reading a day from the provider
+ * corrects it rather than adding a second copy of it. Late conversions move
+ * a day's numbers for weeks after the click, which makes idempotent rewrites
+ * the normal case and not an error path.
+ */
+export async function upsertMetricDays(rows: MetricDay[]): Promise<number> {
+  for (const row of rows) {
+    await graph().upsertNode('MetricDay', row.id, row as unknown as Record<string, unknown>);
+    await graph().relate({
+      fromLabel: 'AdAccount',
+      fromId: row.accountId,
+      type: 'MEASURED',
+      toLabel: 'MetricDay',
+      toId: row.id,
+    });
+  }
+  return rows.length;
+}
+
+/**
+ * Every stored row for a workspace inside an inclusive date range.
+ *
+ * The date filter is applied here rather than in the store because the range
+ * is a comparison, not an equality, and pushing it down would mean teaching
+ * both stores a query language for one call site.
+ */
+export async function listMetricDays(
+  workspaceId: string,
+  range: { start: string; end: string; accountIds?: string[] },
+): Promise<MetricDay[]> {
+  const rows = await graph().listNodes<MetricDay>('MetricDay', { workspaceId });
+  const wanted = range.accountIds ? new Set(range.accountIds) : null;
+  return rows
+    .filter((row) => row.date >= range.start && row.date <= range.end)
+    .filter((row) => !wanted || wanted.has(row.accountId))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/** Whether a workspace has any measured rows at all. */
+export async function hasMetricDays(workspaceId: string): Promise<boolean> {
+  const rows = await graph().listNodes<MetricDay>('MetricDay', { workspaceId });
+  return rows.length > 0;
 }

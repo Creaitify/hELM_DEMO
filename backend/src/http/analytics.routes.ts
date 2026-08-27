@@ -1,6 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../graph/repository.js';
-import type { DataBasis, MetricKey, ScopeSnapshot } from '../domain/types.js';
+import type {
+  ChannelContribution,
+  DataBasis,
+  MetricKey,
+  MetricSeries,
+  MetricValue,
+  ScopeSnapshot,
+  SeriesAnnotation,
+  TimelineEvent,
+} from '../domain/types.js';
+import {
+  channelContributionFrom,
+  decisionStoryFrom,
+  scorelineFrom,
+  seriesFrom,
+} from '../domain/analytics.js';
 import { notFound, requireWorkspace, sendError } from './context.js';
 import * as sample from '../sample/constants.js';
 import { channelContribution } from '../sample/campaigns.js';
@@ -79,6 +94,72 @@ export async function resolveBasis(workspaceId: string, scopeId: string): Promis
   return { snapshot, basis };
 }
 
+/**
+ * Turns stored timeline events into chart annotations.
+ *
+ * Only events that actually moved a figure on the chart earn a mark. A healthy
+ * sync and a person's own decision did not change the numbers, so annotating
+ * them would be decoration competing with the series for attention.
+ */
+function annotationsFrom(events: TimelineEvent[], window: { start: string; end: string }): SeriesAnnotation[] {
+  return events
+    .filter((event) => {
+      if (event.kind === 'spend' || event.kind === 'creative' || event.kind === 'definition') return true;
+      return event.kind === 'sync' && event.tone !== 'good';
+    })
+    .map((event) => ({ date: event.at.slice(0, 10), label: event.title, tone: event.tone }))
+    .filter((entry) => entry.date >= window.start && entry.date <= window.end)
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+export type DerivedAnalytics = {
+  scoreline: MetricValue[];
+  channelContribution: ChannelContribution[];
+  seriesByMetric: Partial<Record<MetricKey, MetricSeries>>;
+  decisionStorySeries: ReturnType<typeof decisionStoryFrom>;
+  movementAnnotations: SeriesAnnotation[];
+};
+
+/**
+ * Every blended figure for a basis, folded from the rows that produced it.
+ *
+ * Returns null when the workspace has no measured rows for the window, which
+ * is the honest answer before anything has been ingested — the caller then
+ * falls back to the sample portfolio rather than rendering an empty briefing
+ * that looks like an account which stopped spending.
+ */
+export async function deriveAnalytics(
+  workspaceId: string,
+  basis: DataBasis,
+  currency: string,
+): Promise<DerivedAnalytics | null> {
+  const window = { start: basis.startDateInclusive, end: basis.endDateInclusive };
+  const comparison =
+    basis.comparisonStartDateInclusive && basis.comparisonEndDateInclusive
+      ? { start: basis.comparisonStartDateInclusive, end: basis.comparisonEndDateInclusive }
+      : null;
+
+  const current = await repo.listMetricDays(workspaceId, { ...window, accountIds: basis.accountIds });
+  if (current.length === 0) return null;
+
+  const [previous, timeline] = await Promise.all([
+    comparison
+      ? repo.listMetricDays(workspaceId, { ...comparison, accountIds: basis.accountIds })
+      : Promise.resolve([]),
+    repo.listTimeline(workspaceId),
+  ]);
+
+  const annotations = annotationsFrom(timeline, window);
+
+  return {
+    scoreline: scorelineFrom(current, previous, currency),
+    channelContribution: channelContributionFrom(current, previous),
+    seriesByMetric: seriesFrom(current, previous, window, comparison, annotations),
+    decisionStorySeries: decisionStoryFrom(current, window),
+    movementAnnotations: annotations,
+  };
+}
+
 export async function analyticsRoutes(app: FastifyInstance) {
   app.get<{ Params: { slug: string }; Querystring: { scope?: string; range?: string; compare?: string } }>(
     '/api/workspaces/:slug/briefing',
@@ -88,10 +169,12 @@ export async function analyticsRoutes(app: FastifyInstance) {
         const scopeId = request.query.scope ?? sample.DEFAULT_SCOPE_ID;
         const { snapshot, basis } = await resolveBasis(context.workspace.id, scopeId);
 
-        const [campaigns, timeline, findings] = await Promise.all([
+        const currency = basis.accountBasis[0]?.currency ?? context.workspace.defaultCurrency;
+        const [campaigns, timeline, findings, derived] = await Promise.all([
           repo.listCampaigns(context.workspace.id),
           repo.listTimeline(context.workspace.id),
           repo.listFindings(context.workspace.id),
+          deriveAnalytics(context.workspace.id, basis, currency),
         ]);
 
         const inScope = campaigns.filter((campaign) => snapshot.accountIds.includes(campaign.accountId));
@@ -100,10 +183,13 @@ export async function analyticsRoutes(app: FastifyInstance) {
           snapshot,
           basis,
           state: basis.aggregation.state === 'compatible' ? 'success' : 'partial',
-          scoreline,
-          channelContribution,
-          decisionStorySeries,
-          movementAnnotations,
+          // Folded from the stored rows. The sample portfolio stands in only
+          // for a workspace that has never measured anything.
+          scoreline: derived?.scoreline ?? scoreline,
+          channelContribution: derived?.channelContribution ?? channelContribution,
+          decisionStorySeries: derived?.decisionStorySeries ?? decisionStorySeries,
+          movementAnnotations: derived?.movementAnnotations ?? movementAnnotations,
+          measured: derived !== null,
           campaigns: inScope,
           timeline,
           findings: findings.slice(0, 6),
@@ -124,8 +210,16 @@ export async function analyticsRoutes(app: FastifyInstance) {
           request.query.scope ?? sample.DEFAULT_SCOPE_ID,
         );
         const metric = (request.query.metric ?? 'spend') as MetricKey;
-        const series = seriesByMetric[metric] ?? seriesByMetric.spend;
-        return { snapshot, basis, state: 'success', series };
+        const currency = basis.accountBasis[0]?.currency ?? context.workspace.defaultCurrency;
+        const derived = await deriveAnalytics(context.workspace.id, basis, currency);
+        const measured = derived?.seriesByMetric ?? null;
+
+        // A metric with no measured rows falls back rather than answering with
+        // an empty series, which a chart would draw as a flat line at zero.
+        const series =
+          measured?.[metric] ?? measured?.spend ?? seriesByMetric[metric] ?? seriesByMetric.spend;
+
+        return { snapshot, basis, state: 'success', measured: derived !== null, series };
       } catch (error) {
         return sendError(reply, error);
       }

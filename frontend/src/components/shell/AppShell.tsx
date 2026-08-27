@@ -235,23 +235,44 @@ export function PageShell({
   actions,
   children,
   wide = false,
+  dense = false,
 }: {
   title: string;
   context?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   wide?: boolean;
+  /**
+   * A working surface, not a report.
+   *
+   * A page you read wants a title with air around it. A page you operate wants
+   * the controls near the top, because every pixel the masthead takes is a
+   * pixel the work does not get. Dense keeps the same heading — it is still
+   * the page's name and its landmark — at the size a tool bar deserves.
+   */
+  dense?: boolean;
 }) {
   return (
-    <div className={cn('mx-auto w-full px-4 py-6 sm:px-6 sm:py-8', wide ? 'max-w-canvas' : 'max-w-shell')}>
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-line pb-5">
+    <div
+      className={cn(
+        'mx-auto w-full px-4 sm:px-6',
+        wide ? 'max-w-canvas' : 'max-w-shell',
+        dense ? 'py-4 sm:py-5' : 'py-6 sm:py-8',
+      )}
+    >
+      <header
+        className={cn(
+          'flex flex-wrap items-end justify-between gap-x-6 border-b border-line',
+          dense ? 'gap-y-2 pb-3' : 'gap-y-3 pb-5',
+        )}
+      >
         <div className="min-w-0">
-          <h1 className="text-page text-ink-950">{title}</h1>
-          {context ? <div className="mt-2.5">{context}</div> : null}
+          <h1 className={cn(dense ? 'text-section' : 'text-page', 'text-ink-950')}>{title}</h1>
+          {context ? <div className={dense ? 'mt-1' : 'mt-2.5'}>{context}</div> : null}
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
-      <div className="mt-8">{children}</div>
+      <div className={dense ? 'mt-5' : 'mt-8'}>{children}</div>
     </div>
   );
 }

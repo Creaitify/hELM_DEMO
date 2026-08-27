@@ -498,6 +498,38 @@ export type HelmErrorCode =
   | 'rate_limited'
   | 'run_blocked';
 
+/**
+ * One campaign, one day, as the platform reported it.
+ *
+ * This is the grain everything else is derived from. A scoreline, a series, a
+ * channel split and a window comparison are all folds over these rows for a
+ * date range and a set of accounts — which is what makes them answerable for
+ * any window rather than fixed at whatever the totals were written to be.
+ *
+ * Rows are immutable facts keyed by (account, campaign, date), so re-reading a
+ * day from the provider corrects it in place instead of double-counting.
+ */
+export type MetricDay = {
+  id: string;
+  workspaceId: string;
+  accountId: string;
+  campaignId: string;
+  provider: AdProviderKey;
+  /** YYYY-MM-DD in the account's own time zone, as the platform reported it. */
+  date: string;
+  currency: string;
+  spend: number;
+  /** null when the platform reports no conversion value, never 0 as a stand-in. */
+  value: number | null;
+  conversions: number;
+  impressions: number;
+  clicks: number;
+};
+
+export function metricDayId(accountId: string, campaignId: string, date: string): string {
+  return `md_${accountId}_${campaignId}_${date}`;
+}
+
 export type ChannelContribution = {
   provider: AdProviderKey;
   label: string;

@@ -13,12 +13,14 @@ export const metadata: Metadata = { title: 'Image studio' };
 /**
  * The image studio lives inside the library, not beside it.
  *
- * It is reached from the creative mode of the library or from a finding, so a
- * generation always starts from something the workspace already understands.
+ * The header is deliberately small. This is a surface you operate rather than
+ * one you read, so the masthead gets a line and the work gets the screen; the
+ * way back to the library rides in the header instead of taking a row of its
+ * own beneath it.
  *
- * The briefing is read alongside it so the studio opens on the account as it
- * stands right now. Creative is a response to what the numbers are doing; a
- * generator that cannot see them is a toy.
+ * The briefing is read alongside the studio so the account is one click away
+ * without occupying the page — creative is a response to what the numbers are
+ * doing, but the numbers are context here, not the subject.
  */
 export default async function StudioPage({
   params,
@@ -33,24 +35,26 @@ export default async function StudioPage({
 
   return (
     <PageShell
-      wide
+      // A single narrow column of controls; the canvas width would strand it.
+      dense
       title="Image studio"
       context={
-        <p className="mono text-[12px] text-ink-400">
+        <p className="mono text-[11.5px] text-ink-400">
           {studio.ok
-            ? `${studio.data.director.name} · ${studio.data.provider.label} · files into the library`
+            ? `${studio.data.director.name} · ${studio.data.provider.label}`
             : 'The studio needs the HELM API'}
         </p>
       }
+      actions={
+        <Link
+          href={routes.library(workspaceSlug)}
+          className="inline-flex items-center gap-1 text-[13px] text-ink-500 transition-colors hover:text-ink-950"
+        >
+          <IconChevronLeft size={15} />
+          Library
+        </Link>
+      }
     >
-      <Link
-        href={routes.library(workspaceSlug)}
-        className="mb-5 inline-flex items-center gap-1 text-[13.5px] text-ink-500 transition-colors hover:text-ink-950"
-      >
-        <IconChevronLeft size={16} />
-        Back to the library
-      </Link>
-
       {studio.ok ? (
         <ImageStudio
           workspaceSlug={workspaceSlug}

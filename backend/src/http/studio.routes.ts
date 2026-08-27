@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { env } from '../env.js';
 import * as repo from '../graph/repository.js';
-import type { Artifact } from '../domain/types.js';
+import type { Artifact, Finding } from '../domain/types.js';
 import { generateImage, imageProviderName, type GenerateImageInput } from '../providers/images.js';
 import { reasonJson } from '../providers/anthropic.js';
 import { AGENTS } from '../agents/registry.js';
@@ -22,6 +22,25 @@ import { ADVERTISER, CREATIVE_LINE, PRODUCT } from '../sample/campaigns.js';
 
 const ASPECTS: GenerateImageInput['aspect'][] = ['1:1', '4:5', '9:16', '16:9'];
 const DIRECTIONS = ['product-proof', 'field-use', 'typographic', 'evidence'] as const;
+
+/**
+ * One entry per distinct statement, measured through the latest date.
+ *
+ * Findings carry no timestamp of their own, so the end of the window a finding
+ * was computed on is the closest thing to when it was true — which is also the
+ * right tiebreak, since the newest window is the one still worth answering.
+ */
+function dedupeByTitle(findings: Finding[]): Finding[] {
+  const best = new Map<string, Finding>();
+  for (const finding of findings) {
+    const key = finding.title.trim().toLowerCase();
+    const held = best.get(key);
+    if (!held || finding.basis.endDateInclusive > held.basis.endDateInclusive) {
+      best.set(key, finding);
+    }
+  }
+  return [...best.values()];
+}
 
 const PRESETS = [
   { id: 'meta_feed', label: 'Meta · 4:5 feed', aspect: '4:5', spec: '1080 × 1350', channel: 'Meta Ads' },
@@ -70,8 +89,16 @@ export async function studioRoutes(app: FastifyInstance) {
           audience: 'Broad prospecting · India',
           objective: 'Sales · purchase',
         },
-        startingPoints: findings
-          .filter((finding) => finding.severity !== 'stable')
+        /*
+         * A starting point is something to answer, not a run's record of it.
+         *
+         * Every run that looks at the account restates the findings that are
+         * still true, so listing findings raw offers the same two problems
+         * five times over and reads as five different choices. They are folded
+         * by what they say, keeping the statement measured through the latest
+         * date, so the list is as long as the number of real problems.
+         */
+        startingPoints: dedupeByTitle(findings.filter((finding) => finding.severity !== 'stable'))
           .slice(0, 5)
           .map((finding) => ({
             findingId: finding.id,
@@ -169,6 +196,8 @@ Write one replacement brief.`,
       campaignId?: string;
       variants?: number;
       saveToLibrary?: boolean;
+      /** What the person asked for on top of the brief, in their own words. */
+      instructions?: string;
     };
   }>('/api/workspaces/:slug/studio/generate', async (request, reply) => {
     try {
@@ -176,8 +205,20 @@ Write one replacement brief.`,
       const context = await requireWorkspace(request, request.params.slug, 'studio.generate');
       const body = request.body ?? {};
 
-      const prompt = body.prompt?.trim();
-      if (!prompt) throw invalid('Write a prompt, or generate a brief first.', 'prompt');
+      const written = body.prompt?.trim();
+      if (!written) throw invalid('Write a prompt, or generate a brief first.', 'prompt');
+
+      /*
+       * The requester's own instruction reaches the renderer.
+       *
+       * It used to be read only when the creative director rewrote the brief,
+       * which meant typing an instruction and pressing Generate silently
+       * dropped it — the image came back ignoring the one thing the person
+       * actually asked for. It is appended last so it qualifies the brief
+       * rather than being buried inside it.
+       */
+      const instructions = body.instructions?.trim();
+      const prompt = instructions ? `${written}\n\nAlso: ${instructions}` : written;
 
       const aspect = ASPECTS.includes(body.aspect as GenerateImageInput['aspect'])
         ? (body.aspect as GenerateImageInput['aspect'])
@@ -217,6 +258,7 @@ Write one replacement brief.`,
             PRODUCT,
             aspect,
             image.provider === 'studio-render' ? 'Studio render' : 'Model generated',
+            ...(instructions ? ['Directed'] : []),
             ...(count > 1 ? [`Variant ${index + 1}`] : []),
           ],
           linkedCampaignId: body.campaignId ?? finding?.affectedCampaignIds[0],

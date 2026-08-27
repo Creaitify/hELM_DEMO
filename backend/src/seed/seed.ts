@@ -5,6 +5,7 @@ import * as sample from '../sample/constants.js';
 import { campaigns, creatives } from '../sample/campaigns.js';
 import { evidence, findings, recommendations, runs, decisions } from '../sample/intelligence.js';
 import { artifacts, auditEntries, members, timeline } from '../sample/library.js';
+import { metricDaysForCampaigns } from './metric-days.js';
 
 /**
  * Seeds the Northstar Group sample workspace into the decision graph.
@@ -78,9 +79,21 @@ export async function seedGraph(log: (message: string) => void = () => undefined
   for (const campaign of campaigns) {
     await repo.upsertCampaign(campaign);
   }
+
   for (const creative of creatives) {
     await repo.upsertCreative(creative);
   }
+
+  // The daily rows every blended figure is folded from. Seeding them means the
+  // sample workspace reads through the same derivation a connected one does.
+  const measured = metricDaysForCampaigns(
+    campaigns,
+    northstar.id,
+    { start: sample.WINDOW_START, end: sample.WINDOW_END },
+    { start: sample.COMPARE_START, end: sample.COMPARE_END },
+  );
+  await repo.upsertMetricDays(measured);
+  log(`measured ${measured.length} campaign-days`);
 
   // Intelligence history
   for (const item of evidence) {
