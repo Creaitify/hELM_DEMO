@@ -29,6 +29,7 @@ import { buildEvidencePack, type EvidencePack } from './evidence-pack.js';
 import { reasonJson, reasoningMode } from '../providers/anthropic.js';
 import { generateImage, imageProviderName } from '../providers/images.js';
 import * as repo from '../graph/repository.js';
+import { brandBriefing, resolveBrandKit } from '../domain/brand.js';
 import { storeStudioAsset } from '../studio/assets.js';
 import { scriptedCreative, scriptedFindings, scriptedRecommendations } from './scripted.js';
 
@@ -930,6 +931,15 @@ async function runCreative(context: RunContext) {
     say(context, id, 'Checking creative alignment with the brand guidance', 50);
 
     const fallback = scriptedCreative(context.pack);
+
+    // The workspace's own kit, not a literal. attachBrand is honoured here
+    // rather than ignored: a run that did not ask for the brand still gets the
+    // campaign line, but not the house rules it never opted into.
+    const kit = await resolveBrandKit(context.workspaceId);
+    const brandGuidance = context.attachBrand
+      ? brandBriefing(kit)
+      : `Brand: ${kit.advertiser} · ${kit.product}. Campaign line: ${kit.campaignLine}.`;
+
     const result = await reasonJson({
       system:
         'You are the Creative Director inside HELM. You write replacement creative directions grounded in fatigue evidence and the brand guidance you are given. Headlines are short enough to set large in a paid-social still. You never address the user and never expose your reasoning.',
@@ -939,7 +949,7 @@ ${JSON.stringify(context.pack.creativeFatigue, null, 2)}
 Findings this creative has to answer:
 ${JSON.stringify(context.findings.map((finding) => finding.title), null, 2)}
 
-Brand guidance: Northstar Hydration, Arc Bottle. Graphite, frost, deep cobalt, one warm coral annotation. Editorial, evidence-led, no gloss.
+${brandGuidance}
 
 Write three replacement directions.`,
       shape: `{"directions": [{"title": "...", "headline": "SHORT LINE", "subline": "...", "rationale": "...", "direction": "product-proof" | "field-use" | "typographic" | "evidence"}]}`,

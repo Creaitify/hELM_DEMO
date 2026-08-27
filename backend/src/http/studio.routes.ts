@@ -9,6 +9,7 @@ import { AGENTS } from '../agents/registry.js';
 import { readStudioAsset, storeStudioAsset } from '../studio/assets.js';
 import { invalid, notFound, requireCsrf, requireWorkspace, sendError } from './context.js';
 import { ADVERTISER, CREATIVE_LINE, PRODUCT } from '../sample/campaigns.js';
+import { resolveBrandKit } from '../domain/brand.js';
 
 /**
  * The image studio.
@@ -43,36 +44,6 @@ function dedupeByTitle(findings: Finding[]): Finding[] {
 }
 
 
-/**
- * The brand kit a generation should inherit.
- *
- * A workspace that has never defined one still needs guidance, so the sample
- * brand stands in — marked as such, so nobody mistakes the placeholder for a
- * decision somebody made.
- */
-async function resolveBrandKit(workspaceId: string, requested?: string): Promise<BrandKit> {
-  const kits = await repo.listBrandKits(workspaceId);
-  const chosen =
-    (requested ? kits.find((kit) => kit.id === requested) : undefined) ??
-    kits.find((kit) => kit.isDefault) ??
-    kits[0];
-  if (chosen) return chosen;
-
-  return {
-    id: 'brand_sample',
-    workspaceId,
-    name: 'Sample brand',
-    advertiser: ADVERTISER,
-    product: PRODUCT,
-    campaignLine: CREATIVE_LINE,
-    palette: 'Graphite, frost, deep cobalt, one warm coral annotation',
-    audience: 'Broad prospecting · India',
-    objective: 'Sales · purchase',
-    guardrails: ['Never invent a product claim that is not in the guidance.'],
-    isDefault: true,
-    updatedAt: new Date().toISOString(),
-  };
-}
 
 const PRESETS = [
   { id: 'meta_feed', label: 'Meta · 4:5 feed', aspect: '4:5', spec: '1080 × 1350', channel: 'Meta Ads' },
