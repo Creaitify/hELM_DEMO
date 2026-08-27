@@ -154,10 +154,22 @@ export const env = {
 
   anthropic: {
     apiKey: str('ANTHROPIC_API_KEY'),
-    model: str('ANTHROPIC_MODEL', 'claude-sonnet-5'),
+    /*
+     * Two things about Haiku 4.5 that the code around this must respect:
+     *
+     *   - `output_config.effort` is rejected on it. Do not add an effort tier
+     *     to the reasoning calls without changing this default first.
+     *   - Its context window is 200K, not the 1M the Sonnet and Opus families
+     *     carry. A fleet prompt that grew comfortably against Sonnet 5 can
+     *     overflow here, so evidence handed to a specialist stays bounded.
+     *
+     * Thinking is off unless a call passes `{type: 'enabled', budget_tokens}`,
+     * which none of them do — adaptive thinking is a 4.6-and-later feature.
+     */
+    model: str('ANTHROPIC_MODEL', 'claude-haiku-4-5'),
     /** The model that holds the review gate, kept separate on purpose. */
-    reviewModel: firstOf(['ANTHROPIC_REVIEW_MODEL', 'ANTHROPIC_MODEL'], 'claude-sonnet-5'),
-    fastModel: firstOf(['ANTHROPIC_FAST_MODEL', 'ANTHROPIC_MODEL'], 'claude-sonnet-5'),
+    reviewModel: firstOf(['ANTHROPIC_REVIEW_MODEL', 'ANTHROPIC_MODEL'], 'claude-haiku-4-5'),
+    fastModel: firstOf(['ANTHROPIC_FAST_MODEL', 'ANTHROPIC_MODEL'], 'claude-haiku-4-5'),
     maxTokens: num('ANTHROPIC_MAX_TOKENS', 8000),
   },
 
