@@ -6,6 +6,7 @@ import type {
   AdAccount,
   Artifact,
   AuditEntry,
+  BrandKit,
   CampaignSummary,
   ChannelContribution,
   Connection,
@@ -196,9 +197,39 @@ export type StudioResponse = {
   fatiguedCreatives: { id: string; name: string; campaignId: string; frequency: number | null; note: string }[];
   campaigns: { id: string; name: string; provider: 'google_ads' | 'meta_ads' }[];
   recent: Artifact[];
+  brandKits: BrandKit[];
+  activeBrandKitId: string;
+  canEditBrand: boolean;
 };
 
 export const getStudio = (slug: string) => apiGet<StudioResponse>(`/api/workspaces/${slug}/studio`);
+
+export type DocumentFormat = { id: 'pdf' | 'doc' | 'md' | 'html' | 'json'; label: string; detail: string };
+
+export type DocumentsResponse = {
+  documents: Artifact[];
+  formats: DocumentFormat[];
+  canWrite: boolean;
+  canPublish: boolean;
+  /** Finished investigations, which are the only ones worth writing up. */
+  sources: {
+    id: string;
+    title: string;
+    stage: string;
+    rangeLabel: string;
+    scopeLabel: string;
+    findingCount: number;
+    alreadyWritten: boolean;
+  }[];
+};
+
+export const getDocuments = (slug: string) =>
+  apiGet<DocumentsResponse>(`/api/workspaces/${slug}/documents`);
+
+export const getDocument = (slug: string, id: string) =>
+  apiGet<{ document: Artifact; formats: DocumentFormat[]; html: string }>(
+    `/api/workspaces/${slug}/documents/${id}`,
+  );
 
 export type ConnectionsResponse = {
   connections: Connection[];

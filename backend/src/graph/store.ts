@@ -32,6 +32,20 @@ export interface GraphStore {
   verify(): Promise<{ ok: boolean; detail: string }>;
 
   upsertNode<T extends NodeProps>(label: string, id: string, props: T): Promise<GraphNode<T>>;
+  /**
+   * Many nodes and their edges in as few round trips as the store allows.
+   *
+   * Daily metric rows arrive in the hundreds for a seed and in the thousands
+   * for a real account's history. Writing those one statement at a time is not
+   * merely slow against serverless Postgres — the connection is reaped before
+   * the loop finishes, so the write fails halfway. This exists because that
+   * happened.
+   */
+  upsertMany<T extends NodeProps>(
+    label: string,
+    rows: (T & { id: string })[],
+    edges?: RelationSpec[],
+  ): Promise<number>;
   getNode<T extends NodeProps>(label: string, id: string): Promise<GraphNode<T> | null>;
   listNodes<T extends NodeProps>(label: string, where?: NodeProps): Promise<GraphNode<T>[]>;
   deleteNode(label: string, id: string): Promise<void>;
@@ -94,6 +108,17 @@ export class MemoryGraphStore implements GraphStore {
 
   private static relationKey(spec: Omit<RelationSpec, 'props'>): string {
     return `${spec.fromLabel}:${spec.fromId}|${spec.type}|${spec.toLabel}:${spec.toId}`;
+  }
+
+  /** No round trips to save here, so the loop is the honest implementation. */
+  async upsertMany<T extends NodeProps>(
+    label: string,
+    rows: (T & { id: string })[],
+    edges: RelationSpec[] = [],
+  ): Promise<number> {
+    for (const row of rows) await this.upsertNode(label, row.id, row);
+    for (const edge of edges) await this.relate(edge);
+    return rows.length;
   }
 
   async upsertNode<T extends NodeProps>(label: string, id: string, props: T) {

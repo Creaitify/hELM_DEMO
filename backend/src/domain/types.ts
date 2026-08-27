@@ -358,6 +358,12 @@ export type Artifact = {
   summary: string;
   format?: string;
   tags: string[];
+  /**
+   * The document itself, in Markdown, for artifacts that are read rather than
+   * looked at. Frozen when written: a memo that re-rendered against later data
+   * would misreport what was decided and when.
+   */
+  content?: string;
   /** Present for rendered creative. A served asset path under /api/studio/assets. */
   imageUrl?: string;
   aspect?: string;
@@ -529,6 +535,31 @@ export type MetricDay = {
 export function metricDayId(accountId: string, campaignId: string, date: string): string {
   return `md_${accountId}_${campaignId}_${date}`;
 }
+
+/**
+ * A brand kit.
+ *
+ * The guidance a generation inherits, held as an editable object rather than a
+ * constant compiled into the studio. A workspace running two brands, or one
+ * brand with a seasonal line, needs to switch between them without a deploy —
+ * and needs to see what the model was told, because "on brand" is a judgement
+ * nobody can make against guidance they cannot read.
+ */
+export type BrandKit = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  advertiser: string;
+  product: string;
+  campaignLine: string;
+  palette: string;
+  audience: string;
+  objective: string;
+  /** House rules the model must not break. One per line, sent verbatim. */
+  guardrails: string[];
+  isDefault: boolean;
+  updatedAt: string;
+};
 
 export type ChannelContribution = {
   provider: AdProviderKey;

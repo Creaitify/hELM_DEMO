@@ -83,11 +83,11 @@ export function AppRail({
       ],
     },
     {
-      label: 'Create',
+      label: 'AI kit',
       links: [
         { href: routes.studio(workspace.slug), label: 'Studio', icon: IconSpark },
-        { href: routes.library(workspace.slug), label: 'Asset Library', icon: IconLibrary, exact: true },
-        { href: routes.library(workspace.slug, { tab: 'reports' }), label: 'Documents', icon: IconEvidence, tab: 'reports' },
+        { href: routes.library(workspace.slug), label: 'Assets', icon: IconLibrary, exact: true },
+        { href: routes.documents(workspace.slug), label: 'Documents', icon: IconEvidence },
       ],
     },
     {
@@ -115,15 +115,14 @@ export function AppRail({
     const base = link.href.split('?')[0];
     const onPath = link.exact ? pathname === base : pathname.startsWith(base);
     if (!onPath) return false;
-    // Settings hosts Team and Activity, and the Library hosts Assets and
-    // Documents, so in both cases the tab decides which row lights up.
+    // Settings still hosts Team and Activity behind one path, so the tab
+    // decides which row lights up. Assets and Documents no longer need this:
+    // they are separate routes now.
     if (base.endsWith('/settings')) {
       return link.tab ? currentTab === link.tab : currentTab !== 'team' && currentTab !== 'audit';
     }
-    if (base.endsWith('/library')) {
-      if (pathname.startsWith(`${base}/studio`)) return false;
-      return link.tab ? currentTab === link.tab : currentTab !== 'reports';
-    }
+    // The studio lives under the library path but is its own destination.
+    if (base.endsWith('/library') && pathname.startsWith(`${base}/studio`)) return false;
     return true;
   };
 

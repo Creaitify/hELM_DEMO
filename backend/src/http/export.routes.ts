@@ -13,16 +13,27 @@ import { notFound, requireWorkspace, sendError } from './context.js';
  * the window and the exclusions that produced it.
  */
 
-type Format = 'md' | 'html' | 'json' | 'csv';
+export type Format = 'md' | 'html' | 'json' | 'csv' | 'pdf' | 'doc';
 
-const CONTENT_TYPE: Record<Format, string> = {
+export const CONTENT_TYPE: Record<Format, string> = {
   md: 'text/markdown; charset=utf-8',
   html: 'text/html; charset=utf-8',
   json: 'application/json; charset=utf-8',
   csv: 'text/csv; charset=utf-8',
+  pdf: 'application/pdf',
+  doc: 'application/msword',
 };
 
-function safeName(value: string): string {
+/** Every format a document can leave the product in, in the order offered. */
+export const FORMATS: { id: Format; label: string; detail: string }[] = [
+  { id: 'pdf', label: 'PDF', detail: 'For a board pack or an attachment' },
+  { id: 'doc', label: 'Word', detail: 'Opens in Word, still editable' },
+  { id: 'md', label: 'Markdown', detail: 'For writing and version control' },
+  { id: 'html', label: 'HTML', detail: 'For reading in a browser' },
+  { id: 'json', label: 'JSON', detail: 'For anything downstream' },
+];
+
+export function safeName(value: string): string {
   return (
     value
       .toLowerCase()
@@ -46,7 +57,7 @@ function money(value: { currency: string; minorUnits: string } | undefined): str
   return `${value.currency} ${major.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
-type MemoInput = {
+export type MemoInput = {
   run: IntelligenceRun;
   findings: Finding[];
   recommendations: Recommendation[];
@@ -55,7 +66,7 @@ type MemoInput = {
   workspaceName: string;
 };
 
-function memoMarkdown(input: MemoInput): string {
+export function memoMarkdown(input: MemoInput): string {
   const { run, findings, recommendations, decisions, artifacts } = input;
   const lines: string[] = [];
 

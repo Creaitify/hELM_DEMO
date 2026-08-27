@@ -2,7 +2,7 @@ import * as repo from '../graph/repository.js';
 import { graph } from '../graph/index.js';
 import type { Member, Role, SessionUser, Workspace } from '../domain/types.js';
 import * as sample from '../sample/constants.js';
-import { campaigns, creatives } from '../sample/campaigns.js';
+import { ADVERTISER, CREATIVE_LINE, PRODUCT, campaigns, creatives } from '../sample/campaigns.js';
 import { evidence, findings, recommendations, runs, decisions } from '../sample/intelligence.js';
 import { artifacts, auditEntries, members, timeline } from '../sample/library.js';
 import { metricDaysForCampaigns } from './metric-days.js';
@@ -93,6 +93,27 @@ export async function seedGraph(log: (message: string) => void = () => undefined
     { start: sample.COMPARE_START, end: sample.COMPARE_END },
   );
   await repo.upsertMetricDays(measured);
+
+  // The guidance every generation inherits, as an editable object rather than
+  // a constant compiled into the studio.
+  await repo.upsertBrandKit(northstar.id, {
+    id: 'brand_northstar',
+    workspaceId: northstar.id,
+    name: 'Northstar — Arc Bottle',
+    advertiser: ADVERTISER,
+    product: PRODUCT,
+    campaignLine: CREATIVE_LINE,
+    palette: 'Graphite, frost, deep cobalt, one warm coral annotation',
+    audience: 'Broad prospecting · India',
+    objective: 'Sales · purchase',
+    guardrails: [
+      'Never state a retention figure the product testing has not measured.',
+      'No lifestyle gloss; the proof is the subject.',
+      'One accent colour per frame.',
+    ],
+    isDefault: true,
+    updatedAt: new Date().toISOString(),
+  });
   log(`measured ${measured.length} campaign-days`);
 
   // Intelligence history

@@ -99,6 +99,67 @@ export class PostgresGraphStore implements GraphStore {
     return (row?.body ?? body) as GraphNode<T>;
   }
 
+  /**
+   * One multi-row statement per chunk, rather than one statement per row.
+   *
+   * Postgres caps a statement at 65535 bound parameters; at two per node and
+   * six per edge, 500 rows a chunk stays far inside that while keeping the
+   * number of round trips to a serverless database in the single digits.
+   */
+  async upsertMany<T extends NodeProps>(
+    label: string,
+    rows: (T & { id: string })[],
+    edges: RelationSpec[] = [],
+  ): Promise<number> {
+    const CHUNK = 500;
+
+    for (let start = 0; start < rows.length; start += CHUNK) {
+      const chunk = rows.slice(start, start + CHUNK);
+      const values: unknown[] = [];
+      const tuples = chunk.map((row, index) => {
+        values.push(row.id, JSON.stringify(row));
+        return `($1, $${index * 2 + 2}, $${index * 2 + 3}::jsonb)`;
+      });
+      values.unshift(label);
+
+      await this.run(
+        `INSERT INTO helm_nodes (label, id, body)
+         VALUES ${tuples.join(', ')}
+         ON CONFLICT (label, id) DO UPDATE
+           SET body = helm_nodes.body || EXCLUDED.body,
+               updated_at = now()`,
+        values,
+      );
+    }
+
+    for (let start = 0; start < edges.length; start += CHUNK) {
+      const chunk = edges.slice(start, start + CHUNK);
+      const values: unknown[] = [];
+      const tuples = chunk.map((edge, index) => {
+        const base = index * 6;
+        values.push(
+          edge.fromLabel,
+          edge.fromId,
+          edge.type,
+          edge.toLabel,
+          edge.toId,
+          JSON.stringify(edge.props ?? {}),
+        );
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}::jsonb)`;
+      });
+
+      await this.run(
+        `INSERT INTO helm_edges (from_label, from_id, type, to_label, to_id, props)
+         VALUES ${tuples.join(', ')}
+         ON CONFLICT (from_label, from_id, type, to_label, to_id) DO UPDATE
+           SET props = helm_edges.props || EXCLUDED.props`,
+        values,
+      );
+    }
+
+    return rows.length;
+  }
+
   async getNode<T extends NodeProps>(label: string, id: string) {
     const [row] = await this.run<{ body: NodeProps }>(
       'SELECT body FROM helm_nodes WHERE label = $1 AND id = $2',

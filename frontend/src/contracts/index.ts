@@ -347,6 +347,12 @@ export type Artifact = {
   summary: string;
   format?: string;
   tags: string[];
+  /**
+   * The document itself, in Markdown, for artifacts that are read rather than
+   * looked at. Frozen when written, so a memo reports what was decided then
+   * rather than re-rendering against numbers that have since moved.
+   */
+  content?: string;
   /** A served asset path for generated creative. Never inline bytes. */
   imageUrl?: string;
   aspect?: string;
@@ -479,6 +485,22 @@ export type HelmError = {
 export type DateRangeKey = '7d' | '14d' | '30d' | '90d' | 'mtd';
 export type ComparisonKey = 'previous' | 'previous_year' | 'none';
 export type AnalysisLevel = 'campaign' | 'ad_group' | 'ad';
+
+/** The guidance a generation inherits, editable rather than compiled in. */
+export type BrandKit = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  advertiser: string;
+  product: string;
+  campaignLine: string;
+  palette: string;
+  audience: string;
+  objective: string;
+  guardrails: string[];
+  isDefault: boolean;
+  updatedAt: string;
+};
 
 export type ChannelContribution = {
   provider: AdProviderKey;

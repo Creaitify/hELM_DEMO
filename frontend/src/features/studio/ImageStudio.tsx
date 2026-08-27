@@ -115,8 +115,10 @@ export function ImageStudio({
   const [variants, setVariants] = useState(2);
   const [saveToLibrary, setSaveToLibrary] = useState(true);
   const [modifiers, setModifiers] = useState<string[]>([]);
+  const [brandKitId, setBrandKitId] = useState(studio.activeBrandKitId);
 
   const [accountOpen, setAccountOpen] = useState(false);
+  const [brandOpen, setBrandOpen] = useState(false);
   const [writing, setWriting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -126,9 +128,11 @@ export function ImageStudio({
   const [inspect, setInspect] = useState<Artifact | null>(null);
 
   const activePreset = studio.presets.find((entry) => entry.id === preset) ?? studio.presets[0];
+  const activeKit =
+    studio.brandKits.find((kit) => kit.id === brandKitId) ?? studio.brandKits[0];
   const aspect = activePreset?.aspect ?? '4:5';
   const director = studio.director.name.split(' ')[0];
-  const brand = `${studio.brand.advertiser ?? 'HELM'} · ${studio.brand.product ?? ''}`.trim();
+  const brand = `${activeKit?.advertiser ?? 'HELM'} · ${activeKit?.product ?? ''}`.trim();
 
   const promptWritten = brief.prompt.trim().length > 0;
   const ready = promptWritten && medium === 'image';
@@ -148,7 +152,7 @@ export function ImageStudio({
     try {
       const response = await api.post<{ brief: Brief; authoredBy: string; live: boolean }>(
         `/api/workspaces/${workspaceSlug}/studio/brief`,
-        { findingId, campaignId, note: instructions || undefined, preset },
+        { findingId, campaignId, note: instructions || undefined, preset, brandKitId },
       );
       setBrief({ ...response.brief });
       setAuthoredBy(response.authoredBy);
@@ -335,7 +339,7 @@ export function ImageStudio({
               </select>
             </Row>
 
-            <Row label="Campaign" last>
+            <Row label="Campaign">
               <select
                 value={campaignId ?? ''}
                 onChange={(event) => setCampaignId(event.target.value || undefined)}
@@ -349,7 +353,79 @@ export function ImageStudio({
                 ))}
               </select>
             </Row>
+
+            <Row label="Brand kit" last>
+              <select
+                value={brandKitId}
+                onChange={(event) => setBrandKitId(event.target.value)}
+                className={SELECT_CLASS}
+              >
+                {studio.brandKits.map((kit) => (
+                  <option key={kit.id} value={kit.id}>
+                    {kit.name}
+                    {kit.isDefault ? ' · default' : ''}
+                  </option>
+                ))}
+              </select>
+            </Row>
           </div>
+
+          {/* What the model was told. Nobody can judge "on brand" against
+              guidance they cannot read. */}
+          <button
+            type="button"
+            onClick={() => setBrandOpen((open) => !open)}
+            aria-expanded={brandOpen}
+            className="flex w-full items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-left transition-colors hover:bg-surface-subtle"
+          >
+            <span className="text-[13px] text-ink-500">
+              {activeKit ? `${activeKit.advertiser} · ${activeKit.product}` : 'Brand guidance'}
+            </span>
+            <span className={cn('text-ink-400 transition-transform', brandOpen && 'rotate-180')}>
+              <IconChevronDown size={14} />
+            </span>
+          </button>
+
+          {brandOpen && activeKit ? (
+            <div className="border-t border-line px-4 py-3">
+              <dl className="mono space-y-1.5 text-[11.5px]">
+                {[
+                  ['Advertiser', activeKit.advertiser],
+                  ['Product', activeKit.product],
+                  ['Line', activeKit.campaignLine],
+                  ['Palette', activeKit.palette],
+                  ['Audience', activeKit.audience],
+                  ['Objective', activeKit.objective],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-3 border-b border-line/70 pb-1.5">
+                    <dt className="shrink-0 text-ink-400">{label}</dt>
+                    <dd className="text-right text-ink-700">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              {activeKit.guardrails.length ? (
+                <div className="mt-2.5">
+                  <p className="micro-label">House rules the model is held to</p>
+                  <ul className="mt-1.5 space-y-1">
+                    {activeKit.guardrails.map((rule) => (
+                      <li key={rule} className="flex gap-2 text-[12px] leading-[17px] text-ink-500">
+                        <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-400" />
+                        {rule}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <a
+                href={routes.settings(workspaceSlug, 'brand')}
+                className="mono mt-3 inline-block text-[11px] text-helm-600 hover:underline"
+              >
+                {studio.canEditBrand ? 'Edit the brand kit' : 'Brand kits are managed in settings'}
+              </a>
+            </div>
+          ) : null}
 
           {/* The prompt */}
           <div className="border-t border-line p-4">

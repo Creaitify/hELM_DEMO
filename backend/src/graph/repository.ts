@@ -6,6 +6,7 @@ import type {
   AdAccount,
   Artifact,
   AuditEntry,
+  BrandKit,
   CampaignSummary,
   Connection,
   CreativeSummary,
@@ -574,17 +575,22 @@ export async function listTimeline(workspaceId: string): Promise<TimelineEvent[]
  * the normal case and not an error path.
  */
 export async function upsertMetricDays(rows: MetricDay[]): Promise<number> {
-  for (const row of rows) {
-    await graph().upsertNode('MetricDay', row.id, row as unknown as Record<string, unknown>);
-    await graph().relate({
+  if (rows.length === 0) return 0;
+
+  // In bulk, because a window of daily rows is hundreds for a seed and
+  // thousands for a real account's history. Written one at a time, the
+  // serverless connection is reaped before the loop finishes.
+  return graph().upsertMany(
+    'MetricDay',
+    rows as unknown as (Record<string, unknown> & { id: string })[],
+    rows.map((row) => ({
       fromLabel: 'AdAccount',
       fromId: row.accountId,
       type: 'MEASURED',
       toLabel: 'MetricDay',
       toId: row.id,
-    });
-  }
-  return rows.length;
+    })),
+  );
 }
 
 /**
@@ -610,4 +616,50 @@ export async function listMetricDays(
 export async function hasMetricDays(workspaceId: string): Promise<boolean> {
   const rows = await graph().listNodes<MetricDay>('MetricDay', { workspaceId });
   return rows.length > 0;
+}
+
+/* ----------------------------------------------------------- brand kits -- */
+
+/**
+ * The guidance a generation inherits.
+ *
+ * Held per workspace so a house running two brands can switch between them,
+ * and so what the model was told is a thing somebody can read and correct
+ * rather than a constant compiled into the studio.
+ */
+export async function listBrandKits(workspaceId: string): Promise<BrandKit[]> {
+  const rows = await graph().neighbours<BrandKit>('Workspace', workspaceId, 'DEFINES', 'BrandKit');
+  return rows.sort((a, b) => (a.isDefault === b.isDefault ? a.name.localeCompare(b.name) : a.isDefault ? -1 : 1));
+}
+
+export async function upsertBrandKit(workspaceId: string, kit: BrandKit): Promise<BrandKit> {
+  // Exactly one default, so the studio never has to guess which to inherit.
+  if (kit.isDefault) {
+    for (const existing of await listBrandKits(workspaceId)) {
+      if (existing.id !== kit.id && existing.isDefault) {
+        await graph().upsertNode('BrandKit', existing.id, {
+          ...existing,
+          isDefault: false,
+        } as unknown as Record<string, unknown>);
+      }
+    }
+  }
+
+  await graph().upsertNode('BrandKit', kit.id, kit as unknown as Record<string, unknown>);
+  await graph().relate({
+    fromLabel: 'Workspace',
+    fromId: workspaceId,
+    type: 'DEFINES',
+    toLabel: 'BrandKit',
+    toId: kit.id,
+  });
+  return kit;
+}
+
+export async function getBrandKit(id: string) {
+  return graph().getNode<BrandKit>('BrandKit', id);
+}
+
+export async function deleteBrandKit(id: string) {
+  await graph().deleteNode('BrandKit', id);
 }

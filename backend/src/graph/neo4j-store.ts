@@ -169,6 +169,17 @@ export class Neo4jGraphStore implements GraphStore {
     }
   }
 
+  /** No round trips to save here, so the loop is the honest implementation. */
+  async upsertMany<T extends NodeProps>(
+    label: string,
+    rows: (T & { id: string })[],
+    edges: RelationSpec[] = [],
+  ): Promise<number> {
+    for (const row of rows) await this.upsertNode(label, row.id, row);
+    for (const edge of edges) await this.relate(edge);
+    return rows.length;
+  }
+
   async upsertNode<T extends NodeProps>(nodeLabel: string, id: string, props: T) {
     const rows = await this.run<{ n: { properties: NodeProps } }>(
       `MERGE (n:${label(nodeLabel)} { id: $id })

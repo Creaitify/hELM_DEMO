@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { env } from '../env.js';
 import * as repo from '../graph/repository.js';
-import type { Artifact, Finding } from '../domain/types.js';
+import type { Artifact, BrandKit, Finding } from '../domain/types.js';
 import { generateImage, imageProviderName, type GenerateImageInput } from '../providers/images.js';
 import { reasonJson } from '../providers/anthropic.js';
 import { AGENTS } from '../agents/registry.js';
@@ -42,6 +42,38 @@ function dedupeByTitle(findings: Finding[]): Finding[] {
   return [...best.values()];
 }
 
+
+/**
+ * The brand kit a generation should inherit.
+ *
+ * A workspace that has never defined one still needs guidance, so the sample
+ * brand stands in — marked as such, so nobody mistakes the placeholder for a
+ * decision somebody made.
+ */
+async function resolveBrandKit(workspaceId: string, requested?: string): Promise<BrandKit> {
+  const kits = await repo.listBrandKits(workspaceId);
+  const chosen =
+    (requested ? kits.find((kit) => kit.id === requested) : undefined) ??
+    kits.find((kit) => kit.isDefault) ??
+    kits[0];
+  if (chosen) return chosen;
+
+  return {
+    id: 'brand_sample',
+    workspaceId,
+    name: 'Sample brand',
+    advertiser: ADVERTISER,
+    product: PRODUCT,
+    campaignLine: CREATIVE_LINE,
+    palette: 'Graphite, frost, deep cobalt, one warm coral annotation',
+    audience: 'Broad prospecting · India',
+    objective: 'Sales · purchase',
+    guardrails: ['Never invent a product claim that is not in the guidance.'],
+    isDefault: true,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 const PRESETS = [
   { id: 'meta_feed', label: 'Meta · 4:5 feed', aspect: '4:5', spec: '1080 × 1350', channel: 'Meta Ads' },
   { id: 'meta_story', label: 'Meta · 9:16 story', aspect: '9:16', spec: '1080 × 1920', channel: 'Meta Ads' },
@@ -53,12 +85,14 @@ export async function studioRoutes(app: FastifyInstance) {
   app.get<{ Params: { slug: string } }>('/api/workspaces/:slug/studio', async (request, reply) => {
     try {
       const context = await requireWorkspace(request, request.params.slug, 'library.read');
-      const [findings, campaigns, creatives, artifacts] = await Promise.all([
+      const [findings, campaigns, creatives, artifacts, brandKits] = await Promise.all([
         repo.listFindings(context.workspace.id),
         repo.listCampaigns(context.workspace.id),
         repo.listCreatives(context.workspace.id),
         repo.listArtifacts(context.workspace.id, 'creative'),
+        repo.listBrandKits(context.workspace.id),
       ]);
+      const activeKit = await resolveBrandKit(context.workspace.id);
 
       const provider = imageProviderName();
 
@@ -82,13 +116,16 @@ export async function studioRoutes(app: FastifyInstance) {
         presets: PRESETS,
         directions: DIRECTIONS,
         brand: {
-          advertiser: ADVERTISER,
-          product: PRODUCT,
-          campaignLine: CREATIVE_LINE,
-          palette: 'Graphite, frost, deep cobalt, one warm coral annotation',
-          audience: 'Broad prospecting · India',
-          objective: 'Sales · purchase',
+          advertiser: activeKit.advertiser,
+          product: activeKit.product,
+          campaignLine: activeKit.campaignLine,
+          palette: activeKit.palette,
+          audience: activeKit.audience,
+          objective: activeKit.objective,
         },
+        brandKits: brandKits.length ? brandKits : [activeKit],
+        activeBrandKitId: activeKit.id,
+        canEditBrand: context.can('library.publish'),
         /*
          * A starting point is something to answer, not a run's record of it.
          *
@@ -128,6 +165,63 @@ export async function studioRoutes(app: FastifyInstance) {
   });
 
   /**
+   * Saves a brand kit.
+   *
+   * Publishing rights, not generation rights: changing the guidance changes
+   * every image the workspace makes afterwards, which is a different kind of
+   * decision from asking for one picture.
+   */
+  app.put<{ Params: { slug: string }; Body: Partial<BrandKit> & { id?: string } }>(
+    '/api/workspaces/:slug/brand-kits',
+    async (request, reply) => {
+      try {
+        requireCsrf(request);
+        const context = await requireWorkspace(request, request.params.slug, 'library.publish');
+        const body = request.body ?? {};
+
+        const name = body.name?.trim();
+        if (!name) throw invalid('Give the brand kit a name.', 'name');
+
+        const existing = body.id && body.id !== 'brand_sample' ? await repo.getBrandKit(body.id) : null;
+        const kits = await repo.listBrandKits(context.workspace.id);
+
+        const kit: BrandKit = {
+          id: existing?.id ?? `brand_${randomUUID().slice(0, 8)}`,
+          workspaceId: context.workspace.id,
+          name,
+          advertiser: body.advertiser?.trim() || existing?.advertiser || ADVERTISER,
+          product: body.product?.trim() || existing?.product || PRODUCT,
+          campaignLine: body.campaignLine?.trim() || existing?.campaignLine || CREATIVE_LINE,
+          palette: body.palette?.trim() || existing?.palette || 'Graphite, frost, deep cobalt, one warm coral annotation',
+          audience: body.audience?.trim() || existing?.audience || 'Broad prospecting · India',
+          objective: body.objective?.trim() || existing?.objective || 'Sales · purchase',
+          guardrails: (body.guardrails ?? existing?.guardrails ?? [])
+            .map((rule) => String(rule).trim())
+            .filter(Boolean)
+            .slice(0, 12),
+          // The first kit a workspace defines is the one everything inherits.
+          isDefault: body.isDefault ?? existing?.isDefault ?? kits.length === 0,
+          updatedAt: new Date().toISOString(),
+        };
+
+        await repo.upsertBrandKit(context.workspace.id, kit);
+        await repo.recordAudit(context.workspace.id, {
+          id: `aud_${randomUUID().slice(0, 8)}`,
+          at: kit.updatedAt,
+          actor: context.user.name,
+          action: existing ? 'updated a brand kit' : 'created a brand kit',
+          target: kit.name,
+          context: `${kit.advertiser} · ${kit.product}`,
+        });
+
+        return { kit, kits: await repo.listBrandKits(context.workspace.id) };
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  /**
    * Writes the brief before it draws it.
    *
    * The creative director turns a finding, a campaign and the brand guidance
@@ -136,12 +230,13 @@ export async function studioRoutes(app: FastifyInstance) {
    */
   app.post<{
     Params: { slug: string };
-    Body: { findingId?: string; campaignId?: string; note?: string; preset?: string };
+    Body: { findingId?: string; campaignId?: string; note?: string; preset?: string; brandKitId?: string };
   }>('/api/workspaces/:slug/studio/brief', async (request, reply) => {
     try {
       requireCsrf(request);
       const context = await requireWorkspace(request, request.params.slug, 'studio.generate');
 
+      const kit = await resolveBrandKit(context.workspace.id, request.body?.brandKitId);
       const finding = request.body?.findingId ? await repo.getFinding(request.body.findingId) : null;
       const creatives = await repo.listCreatives(context.workspace.id, request.body?.campaignId);
       const fatigued = creatives.filter((creative) => creative.fatigue !== 'healthy');
@@ -154,14 +249,21 @@ export async function studioRoutes(app: FastifyInstance) {
         rationale: finding
           ? `Answers “${finding.title}” with the one product claim the audience has not been shown twice.`
           : 'Leads with the single measurable product claim rather than a lifestyle scene.',
-        prompt: `Editorial paid-social still for ${ADVERTISER} ${PRODUCT}. Cold-retention proof, hard crop, low horizon, deep cobalt field with a single warm coral annotation rule.`,
+        prompt: `Editorial paid-social still for ${kit.advertiser} ${kit.product}. Cold-retention proof, hard crop, low horizon, deep cobalt field with a single warm coral annotation rule.`,
       };
+
+      // Built above the template so the rules read as a list rather than as a
+      // nested ternary inside a prompt.
+      const houseRules = kit.guardrails.length
+        ? ['House rules that must not be broken:', ...kit.guardrails.map((rule) => `- ${rule}`)].join('\n')
+        : '';
 
       const result = await reasonJson({
         system:
           'You are the Creative Director inside HELM. You write one grounded creative brief at a time. Headlines are short enough to set large in a paid-social still. You never invent a product claim that is not in the guidance you are given.',
-        prompt: `Brand: ${ADVERTISER} · ${PRODUCT}. Campaign line: ${CREATIVE_LINE}.
-Palette: graphite, frost, deep cobalt, one warm coral annotation. Editorial, evidence-led, no gloss.
+        prompt: `Brand: ${kit.advertiser} · ${kit.product}. Campaign line: ${kit.campaignLine}.
+Palette: ${kit.palette}. Audience: ${kit.audience}. Objective: ${kit.objective}.
+${houseRules}
 ${finding ? `Finding to answer: ${finding.title} — ${finding.observation}` : ''}
 ${fatigued.length ? `Creative that is wearing out: ${fatigued.map((creative) => `${creative.name} (${creative.note})`).join('; ')}` : ''}
 ${request.body?.note ? `The requester added: ${request.body.note}` : ''}
