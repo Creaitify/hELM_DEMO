@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { AuditEntry, Connection, Member, Role, UserPreference, Workspace } from '@/contracts';
+import type { AuditEntry, BrandKit, Connection, Member, Role, UserPreference, Workspace } from '@/contracts';
 import { Button } from '@/components/primitives/Button';
 import { Select, Tabs, TextField } from '@/components/primitives/Controls';
 import { ConnectionBadge, StatusBadge } from '@/components/primitives/Status';
@@ -13,6 +13,7 @@ import { api, describeError } from '@/lib/api';
 import { formatRelative } from '@/lib/format';
 import { routes } from '@/lib/routes';
 import { cn } from '@/lib/cn';
+import { BrandKitEditor } from './BrandKitEditor';
 
 const ROLE_LABEL: Record<Member['role'], string> = {
   owner: 'Owner',
@@ -29,6 +30,8 @@ export function SettingsWorkspace({
   audit,
   preferences,
   workspaceSlug,
+  brandKits,
+  canEditBrand,
   initialTab,
   nowIso,
   canManageMembers = false,
@@ -43,6 +46,8 @@ export function SettingsWorkspace({
   audit: AuditEntry[];
   preferences: UserPreference;
   workspaceSlug: string;
+  brandKits: BrandKit[];
+  canEditBrand: boolean;
   initialTab?: string;
   nowIso: string;
   /** Changing a role or removing access is an admin or owner permission. */
@@ -105,6 +110,7 @@ export function SettingsWorkspace({
           { value: 'workspace', label: 'Workspace' },
           { value: 'team', label: 'Team', count: members.length },
           { value: 'connections', label: 'Connections' },
+          { value: 'brand', label: 'Brand' },
           { value: 'preferences', label: 'Preferences' },
           { value: 'audit', label: 'Audit', count: audit.length },
         ]}
@@ -373,6 +379,17 @@ export function SettingsWorkspace({
                 Save preferences
               </Button>
             </div>
+          </div>
+        ) : null}
+
+        {tab === 'brand' ? (
+          <div className="space-y-4">
+            <p className="max-w-prose text-[14px] leading-[21px] text-ink-500">
+              What the creative director is told before it writes anything. The house rules travel
+              verbatim into every brief, so they are written here in plain language rather than held
+              in a config file nobody on the account can read.
+            </p>
+            <BrandKitEditor workspaceSlug={workspaceSlug} kits={brandKits} canEdit={canEditBrand} />
           </div>
         ) : null}
 

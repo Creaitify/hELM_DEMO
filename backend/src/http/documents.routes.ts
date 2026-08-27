@@ -47,10 +47,44 @@ async function memoInputFor(workspaceId: string, workspaceName: string, runId: s
   return { run, findings, recommendations, decisions, artifacts, workspaceName };
 }
 
-/** Renders a stored document into the format asked for. */
-function render(document: Artifact, format: Format): { body: string | Buffer; contentType: string } {
-  const markdown = document.content ?? document.summary;
+/**
+ * The document's own text.
+ *
+ * Memos written before documents had a body carry only a one-line summary, and
+ * downloading one produced a ninety-byte "memo" that looked like a real
+ * deliverable until somebody opened it. When a document has no stored body but
+ * names the run it came from, it is written from that run on demand — the same
+ * builder, the same prose — so every memo on the shelf is a whole document.
+ */
+async function bodyOf(workspaceId: string, workspaceName: string, document: Artifact): Promise<string> {
+  if (document.content?.trim()) return document.content;
 
+  if (document.linkedRunId) {
+    try {
+      return memoMarkdown(await memoInputFor(workspaceId, workspaceName, document.linkedRunId));
+    } catch {
+      // The run has been deleted since. The summary is all that is left, and
+      // saying so beats handing over a document that pretends to be complete.
+    }
+  }
+
+  return [
+    `# ${document.title}`,
+    '',
+    document.summary,
+    '',
+    '---',
+    '',
+    '_This artifact predates stored document bodies and the investigation behind it is no longer available, so only its summary survives._',
+  ].join('\n');
+}
+
+/** Renders a document into the format asked for. */
+function render(
+  document: Artifact,
+  markdown: string,
+  format: Format,
+): { body: string | Buffer; contentType: string } {
   if (format === 'pdf') {
     return { body: toPdf(markdown), contentType: CONTENT_TYPE.pdf };
   }
@@ -87,8 +121,17 @@ export async function documentRoutes(app: FastifyInstance) {
 
       const writtenFor = new Set(artifacts.map((artifact) => artifact.linkedRunId).filter(Boolean));
 
+      // Bodies are resolved for the shelf too, so opening one to read never
+      // shows a summary where the document should be.
+      const documents = await Promise.all(
+        artifacts.map(async (artifact) => ({
+          ...artifact,
+          content: await bodyOf(context.workspace.id, context.workspace.name, artifact),
+        })),
+      );
+
       return {
-        documents: artifacts,
+        documents,
         formats: FORMATS,
         canWrite: context.can('library.create'),
         canPublish: context.can('library.publish'),
@@ -176,8 +219,8 @@ export async function documentRoutes(app: FastifyInstance) {
           throw invalid('That is not a format this document can be written in.', 'format');
         }
 
-        const { body, contentType } = render(document, format);
-        void context;
+        const markdown = await bodyOf(context.workspace.id, context.workspace.name, document);
+        const { body, contentType } = render(document, markdown, format);
 
         return reply
           .header('content-type', contentType)
@@ -197,11 +240,12 @@ export async function documentRoutes(app: FastifyInstance) {
     '/api/workspaces/:slug/documents/:id',
     async (request, reply) => {
       try {
-        await requireWorkspace(request, request.params.slug, 'library.read');
+        const context = await requireWorkspace(request, request.params.slug, 'library.read');
         const document = await repo.getArtifact(request.params.id);
         if (!document || document.mode !== 'reports') throw notFound('That document no longer exists.');
 
-        return { document, formats: FORMATS, html: markdownToHtml(document.content ?? document.summary) };
+        const markdown = await bodyOf(context.workspace.id, context.workspace.name, document);
+        return { document: { ...document, content: markdown }, formats: FORMATS, html: markdownToHtml(markdown) };
       } catch (error) {
         return sendError(reply, error);
       }

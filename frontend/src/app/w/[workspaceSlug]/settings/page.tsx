@@ -4,7 +4,7 @@ import { PageShell } from '@/components/shell/AppShell';
 import { InlineNotice } from '@/components/primitives/States';
 import { SettingsWorkspace } from '@/features/settings/SettingsWorkspace';
 import { fleetNotice } from '@/features/intelligence/fleet-fallback';
-import { getAudit, getMembers, getSession, getWorkspace } from '@/services/http/queries';
+import { getBrandKits, getAudit, getMembers, getSession, getWorkspace } from '@/services/http/queries';
 import {
   NOW_ISO,
   auditEntries as sampleAudit,
@@ -26,11 +26,12 @@ export default async function SettingsPage({
   const { workspaceSlug } = await params;
   const { tab } = await searchParams;
 
-  const [workspaceRead, membersRead, auditRead, session] = await Promise.all([
+  const [workspaceRead, membersRead, auditRead, session, brandRead] = await Promise.all([
     getWorkspace(workspaceSlug),
     getMembers(workspaceSlug),
     getAudit(workspaceSlug),
     getSession(),
+    getBrandKits(workspaceSlug),
   ]);
 
   const workspace = workspaceRead.ok
@@ -45,7 +46,7 @@ export default async function SettingsPage({
       title="Settings"
       context={
         <p className="mono text-[12px] text-ink-400">
-          Workspace, team, connections, preferences and audit for {workspace.name}
+          Workspace, team, brand, connections, preferences and audit for {workspace.name}
         </p>
       }
     >
@@ -62,6 +63,8 @@ export default async function SettingsPage({
         audit={auditRead.ok ? auditRead.data.entries : sampleAudit}
         preferences={preferences}
         workspaceSlug={workspaceSlug}
+        brandKits={brandRead.ok ? brandRead.data.kits : []}
+        canEditBrand={brandRead.ok ? brandRead.data.canEdit : false}
         initialTab={tab}
         nowIso={NOW_ISO}
         canManageMembers={membersRead.ok ? membersRead.data.canManage : false}

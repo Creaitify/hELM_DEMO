@@ -20,10 +20,77 @@ let client: Anthropic | null = null;
  * really do, instead of promising model reasoning and quietly falling back on
  * every run.
  */
-let health: { state: 'unconfigured' | 'unverified' | 'live' | 'rejected'; detail: string } = {
+export type ReasoningHealth = {
+  /**
+   * `rejected` is permanent for this process: the key is wrong and retrying
+   * will not change that. `unavailable` is not — a rate limit, an overloaded
+   * API or a network blip says nothing about the key, and the next call may
+   * well succeed.
+   *
+   * Collapsing the two was a real fault: a single 529 while the service was
+   * starting downgraded the whole fleet to scripted reasoning for the lifetime
+   * of the process, with nothing in the interface to say why.
+   */
+  state: 'unconfigured' | 'unverified' | 'live' | 'rejected' | 'unavailable';
+  detail: string;
+};
+
+let health: ReasoningHealth = {
   state: 'unconfigured',
   detail: 'No ANTHROPIC_API_KEY configured.',
 };
+
+/**
+ * Classifies a failure by what the SDK actually threw.
+ *
+ * Matching on the text of an error message is guesswork that breaks the first
+ * time the wording changes; the SDK raises a distinct class per status, so the
+ * distinction that matters here — permanent versus transient — is read from
+ * the type rather than inferred from prose.
+ */
+function classify(error: unknown): ReasoningHealth {
+  if (error instanceof Anthropic.AuthenticationError) {
+    return {
+      state: 'rejected',
+      detail:
+        'The ANTHROPIC_API_KEY was rejected (401). The fleet is running its deterministic sample reasoning.',
+    };
+  }
+  if (error instanceof Anthropic.PermissionDeniedError) {
+    return {
+      state: 'rejected',
+      detail: 'The ANTHROPIC_API_KEY is valid but not permitted to use this model (403).',
+    };
+  }
+  if (error instanceof Anthropic.NotFoundError) {
+    return {
+      state: 'rejected',
+      detail: `No such model: ${env.anthropic.model} (404). Check ANTHROPIC_MODEL.`,
+    };
+  }
+  if (error instanceof Anthropic.RateLimitError) {
+    return { state: 'unavailable', detail: 'Rate limited (429). Reasoning will be retried.' };
+  }
+  if (error instanceof Anthropic.InternalServerError) {
+    return { state: 'unavailable', detail: 'Anthropic is unavailable right now. Reasoning will be retried.' };
+  }
+  if (error instanceof Anthropic.APIConnectionError) {
+    return { state: 'unavailable', detail: 'Could not reach Anthropic. Reasoning will be retried.' };
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return { state: 'unavailable', detail: `Anthropic call failed: ${message.slice(0, 160)}` };
+}
+
+/**
+ * Only a key we know to be wrong stops the attempt.
+ *
+ * Anything transient still tries, because the alternative is refusing to reason
+ * for hours after one bad minute.
+ */
+function reasoningBlocked(): boolean {
+  return health.state === 'rejected';
+}
 
 function anthropic(): Anthropic | null {
   if (!env.anthropic.apiKey) return null;
@@ -46,13 +113,7 @@ export async function verifyAnthropic(): Promise<typeof health> {
     });
     health = { state: 'live', detail: `Anthropic reachable — ${env.anthropic.model}` };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    health = {
-      state: 'rejected',
-      detail: message.includes('authentication_error')
-        ? 'The ANTHROPIC_API_KEY was rejected (401). The fleet is running its deterministic sample reasoning.'
-        : `Anthropic call failed: ${message.slice(0, 160)}`,
-    };
+    health = classify(error);
   }
   return health;
 }
@@ -117,14 +178,14 @@ export async function reasonJson<T>(options: ReasonOptions<T>): Promise<ReasonRe
   const model = options.model ?? env.anthropic.model;
   const sdk = anthropic();
 
-  if (!sdk || health.state === 'rejected') {
+  if (!sdk || reasoningBlocked()) {
     return {
       value: options.fallback,
       live: false,
       tokensIn: 0,
       tokensOut: 0,
       model: 'scripted',
-      error: health.state === 'rejected' ? health.detail : undefined,
+      error: reasoningBlocked() ? health.detail : undefined,
     };
   }
 
@@ -145,6 +206,10 @@ export async function reasonJson<T>(options: ReasonOptions<T>): Promise<ReasonRe
       .join('\n')
       .trim();
 
+    // A call that worked is the best evidence there is that the key is good,
+    // so a run recovers the health a transient failure took away.
+    health = { state: 'live', detail: `Anthropic reachable — ${model}` };
+
     return {
       value: extractJson(text) as T,
       live: true,
@@ -153,13 +218,17 @@ export async function reasonJson<T>(options: ReasonOptions<T>): Promise<ReasonRe
       model,
     };
   } catch (error) {
+    // An unparseable body is the model's answer being unusable, not the
+    // connection being unwell, and must not mark the API unhealthy.
+    if (error instanceof Anthropic.APIError) health = classify(error);
+
     return {
       value: options.fallback,
       live: false,
       tokensIn: 0,
       tokensOut: 0,
       model,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Anthropic.APIError ? health.detail : 'The model did not return usable JSON.',
     };
   }
 }
@@ -173,7 +242,7 @@ export async function reasonText(options: {
 }): Promise<ReasonResult<string>> {
   const model = options.model ?? env.anthropic.model;
   const sdk = anthropic();
-  if (!sdk || health.state === 'rejected') {
+  if (!sdk || reasoningBlocked()) {
     return { value: options.fallback, live: false, tokensIn: 0, tokensOut: 0, model: 'scripted' };
   }
   try {
@@ -212,5 +281,5 @@ export async function reasonText(options: {
  */
 export function reasoningMode(): 'anthropic' | 'scripted' {
   if (!env.anthropic.apiKey) return 'scripted';
-  return health.state === 'rejected' ? 'scripted' : 'anthropic';
+  return reasoningBlocked() ? 'scripted' : 'anthropic';
 }

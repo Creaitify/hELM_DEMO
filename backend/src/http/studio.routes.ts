@@ -164,6 +164,22 @@ export async function studioRoutes(app: FastifyInstance) {
     }
   });
 
+  /** The brand kits a workspace has defined, for the surface that edits them. */
+  app.get<{ Params: { slug: string } }>('/api/workspaces/:slug/brand-kits', async (request, reply) => {
+    try {
+      const context = await requireWorkspace(request, request.params.slug, 'library.read');
+      const kits = await repo.listBrandKits(context.workspace.id);
+      return {
+        // A workspace that has never defined one still needs something to
+        // edit, so the stand-in is offered rather than an empty page.
+        kits: kits.length ? kits : [await resolveBrandKit(context.workspace.id)],
+        canEdit: context.can('library.publish'),
+      };
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   /**
    * Saves a brand kit.
    *

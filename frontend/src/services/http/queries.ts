@@ -250,6 +250,9 @@ export type MembersResponse = {
   roleMatrix: { role: Role; label: string; permissions: string[] }[];
 };
 
+export const getBrandKits = (slug: string) =>
+  apiGet<{ kits: BrandKit[]; canEdit: boolean }>(`/api/workspaces/${slug}/brand-kits`);
+
 export const getMembers = (slug: string) => apiGet<MembersResponse>(`/api/workspaces/${slug}/members`);
 
 export const getAudit = (slug: string) =>

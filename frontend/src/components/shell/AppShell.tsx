@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import type { AccountGroup, AccountScope, AdAccount, IntelligenceRun, Workspace } from '@/contracts';
 import { AppRail } from './AppRail';
+import { AgentOrb } from './AgentOrb';
 import { MobileNavigation, ScopeBar } from './ScopeBar';
 import { GlobalCommand } from './GlobalCommand';
 import { AccountScopeCommand } from '@/components/scope/AccountScopeCommand';
@@ -158,6 +159,21 @@ export function AppShell({
 
         <MobileNavigation workspaceSlug={workspace.slug} query={query} />
       </div>
+
+      <AgentOrb
+        workspaceSlug={workspace.slug}
+        decisionCount={decisionCount}
+        activeRun={
+          activeRun
+            ? {
+                id: activeRun.id,
+                title: activeRun.title,
+                stage:
+                  activeRun.stages.find((stage) => stage.state === 'active')?.label ?? activeRun.stage,
+              }
+            : null
+        }
+      />
 
       <GlobalCommand
         open={commandOpen}
