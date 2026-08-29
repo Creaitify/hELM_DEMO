@@ -315,6 +315,39 @@ export async function intelligenceRoutes(app: FastifyInstance) {
     },
   );
 
+  /**
+   * Deletes a run and everything that only existed because of it.
+   *
+   * Investigations accumulate — every verification pass and every demo leaves
+   * one — and their findings all surface on the briefing. A workspace with
+   * twenty runs of the same question shows the reader six near-identical
+   * findings and no way to tell which to open, which is the one thing that
+   * page exists to answer.
+   *
+   * Memos are left alone. A document somebody was handed is a record of what
+   * was said at the time and outlives the investigation behind it.
+   */
+  app.delete<{ Params: { slug: string; id: string } }>(
+    '/api/workspaces/:slug/intelligence/:id',
+    async (request, reply) => {
+      try {
+        requireCsrf(request);
+        await requireWorkspace(request, request.params.slug, 'intelligence.run');
+
+        const run = await repo.getRun(request.params.id);
+        if (!run) throw notFound('That investigation no longer exists.');
+        if (isRunActive(run.id)) {
+          throw invalid('That investigation is still running. Cancel it before deleting it.');
+        }
+
+        await repo.deleteRunCascade(run);
+        return { deleted: true, id: run.id };
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
   /** Re-runs the failed step without restarting the whole workflow. */
   app.post<{ Params: { slug: string; id: string } }>(
     '/api/workspaces/:slug/intelligence/:id/retry',

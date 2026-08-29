@@ -13,6 +13,7 @@ import type {
   FleetAgentHealth,
   FleetSnapshot,
   IntelligenceRun,
+  MetricSeries,
   MetricValue,
   Recommendation,
   RunStage,
@@ -638,6 +639,12 @@ async function runInput(context: RunContext) {
       tone: (row.deltaCpa ?? 0) > 0.1 ? ('bad' as const) : (row.deltaCpa ?? 0) < -0.05 ? ('good' as const) : ('neutral' as const),
       mono: true,
     })),
+    // The series is what the finding card draws its trend line from.
+    series: await dailyCostSeries(
+      context.workspaceId,
+      context.basis,
+      pack.movement.map((row) => row.campaignId),
+    ),
     basis: context.basis,
     method: 'Window versus the previous equivalent window, per campaign, on the same day basis.',
   };
@@ -701,6 +708,57 @@ async function runInput(context: RunContext) {
   });
 }
 
+/**
+ * The daily cost-per-conversion series behind a run.
+ *
+ * A finding card draws a trend line next to its leading figure, and it draws
+ * it from a series carried on the evidence. The seeded evidence had one and
+ * nothing the fleet wrote ever did, so every card the agents produced showed
+ * the numbers with no line beside them — 41 evidence records in the graph and
+ * 4 with a series, all 4 of them fixtures.
+ *
+ * This folds the stored daily rows the same way the briefing folds them:
+ * spend and conversions summed per reporting day, divided at the end. A day
+ * that converted nothing has no cost per conversion and is written as null
+ * rather than as a zero, which would draw a line to the floor and read as a
+ * collapse in cost.
+ */
+async function dailyCostSeries(
+  workspaceId: string,
+  basis: DataBasis,
+  campaignIds: string[],
+): Promise<MetricSeries | undefined> {
+  const rows = await repo.listMetricDays(workspaceId, {
+    start: basis.startDateInclusive,
+    end: basis.endDateInclusive,
+    accountIds: basis.accountIds,
+  });
+  if (rows.length === 0) return undefined;
+
+  const wanted = campaignIds.length ? new Set(campaignIds) : null;
+  const byDay = new Map<string, { spend: number; conversions: number }>();
+
+  for (const row of rows) {
+    if (wanted && !wanted.has(row.campaignId)) continue;
+    const day = byDay.get(row.date) ?? { spend: 0, conversions: 0 };
+    day.spend += row.spend;
+    day.conversions += row.conversions;
+    byDay.set(row.date, day);
+  }
+  if (byDay.size < 2) return undefined;
+
+  const points = [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, day]) => ({
+      date,
+      value: day.conversions > 0 ? Math.round((day.spend / day.conversions) * 100) / 100 : null,
+    }));
+
+  return points.filter((point) => point.value !== null).length > 1
+    ? { metric: 'cpa', points }
+    : undefined;
+}
+
 /* ----------------------------------------------------------- 2. analyst -- */
 
 /**
@@ -748,11 +806,13 @@ export function highlightsFor(pack: EvidencePack, campaignIds: string[]): Metric
       deltaRatio: lead.deltaSpend ?? null,
     });
 
-    // A fatigue finding is about the asset, so the asset's own figures lead
-    // over anything else the campaign happens to be doing.
+    // Cost leads, and the asset's own figures follow it. The card draws its
+    // trend line beside the first metric in the strip, and the only series
+    // these findings have is a cost series — so putting the hook rate first
+    // would caption a CPA line with a view rate.
     const worn = pack.creativeFatigue.find((entry) => campaignIds.includes(entry.campaignId));
     if (worn?.hookRate !== null && worn?.hookRate !== undefined) {
-      highlights.unshift({ key: 'hook_rate', value: worn.hookRate, deltaRatio: null });
+      highlights.push({ key: 'hook_rate', value: worn.hookRate, deltaRatio: null });
     }
     if (worn?.frequency !== null && worn?.frequency !== undefined) {
       highlights.push({ key: 'frequency', value: worn.frequency, deltaRatio: null });
@@ -806,6 +866,7 @@ const FINDING_SHAPE = `{
     "observation": "two or three sentences naming the metric, the movement and the window",
     "kind": "observed" | "calculated" | "inferred",
     "severity": "decision" | "watch" | "stable",
+    "_severity_meaning": "decision = costs real money this week and a person must choose; watch = directional, real but not yet worth a budget change; stable = checked and behaving, reported so nobody has to look. Most windows produce one or two decision-grade findings, not four.",
     "confidence": "high" | "medium" | "low",
     "confidenceNote": "why this confidence and not another",
     "affectedCampaignIds": ["campaign id from the pack"],
@@ -854,7 +915,9 @@ ${context.question ? `Additional context: ${context.question}` : ''}
 Evidence pack:
 ${JSON.stringify(context.pack, null, 2)}
 
-Write two to four findings, worst-cost first, and one capped proposal for each decision-grade finding.`,
+Write two to four findings, worst-cost first, and one capped proposal for each decision-grade finding.
+
+Grade them honestly. A finding is decision-grade only when it carries real money this week and a person has to choose something. A real but directional signal is "watch". Something you checked and found behaving is "stable", and reporting it is useful because it saves someone looking. A set where everything is decision-grade tells the reader nothing about what to open first.`,
       shape: FINDING_SHAPE,
       fallback: {
         findings: fallbackFindings,
@@ -876,15 +939,24 @@ Write two to four findings, worst-cost first, and one capped proposal for each d
 
     for (const [index, row] of rows.slice(0, 4).entries()) {
       const affected = (row.affectedCampaignIds ?? []).filter((entry: string) => validCampaignIds.has(entry));
+      // A decision-grade finding is a claim that money is at stake. If the
+      // campaign it names did not get more expensive there is no exposure to
+      // size, and the claim is not supportable however the model graded it —
+      // so it drops to watch. This is a floor on the wording, not a rewrite of
+      // the judgement: nothing is ever promoted here.
+      const exposure = exposureFor(context.pack, affected);
+      const claimed = (['decision', 'watch', 'stable'].includes(row.severity) ? row.severity : 'watch') as Finding['severity'];
+      const severity: Finding['severity'] = claimed === 'decision' && !exposure ? 'watch' : claimed;
+
       const finding: Finding = {
         id: `fnd_${context.run.id}_${index + 1}`,
         title: String(row.title ?? 'Finding'),
         observation: String(row.observation ?? ''),
         kind: (['observed', 'calculated', 'inferred'].includes(row.kind) ? row.kind : 'calculated') as Finding['kind'],
-        severity: (['decision', 'watch', 'stable'].includes(row.severity) ? row.severity : 'watch') as Finding['severity'],
+        severity,
         confidence: (['high', 'medium', 'low'].includes(row.confidence) ? row.confidence : 'medium') as Finding['confidence'],
         confidenceNote: String(row.confidenceNote ?? 'Confidence follows the completeness of the window.'),
-        exposure: exposureFor(context.pack, affected),
+        exposure,
         evidenceIds: context.evidence.map((entry) => entry.id),
         basis: context.basis,
         recommendedNextStep: row.recommendedNextStep ? String(row.recommendedNextStep) : undefined,
@@ -1579,18 +1651,7 @@ export async function repairFindingFigures(
   workspaceId: string,
   pack: EvidencePack,
 ): Promise<{ scanned: number; repaired: number }> {
-  const [findings, runs] = await Promise.all([
-    repo.listFindings(workspaceId),
-    repo.listRuns(workspaceId),
-  ]);
-
-  // A finding does not carry its run, so the producing run is recovered from
-  // the run that claims it. Re-filing needs it to keep the PRODUCED edge.
-  const runIdByFinding = new Map<string, string>();
-  for (const run of runs) {
-    for (const findingId of run.findingIds) if (!runIdByFinding.has(findingId)) runIdByFinding.set(findingId, run.id);
-  }
-
+  const findings = await repo.listFindings(workspaceId);
   let repaired = 0;
 
   for (const finding of findings) {
@@ -1611,10 +1672,7 @@ export async function repairFindingFigures(
 
     if (!needsFigures && !degenerate && !missingExposure) continue;
 
-    const runId = runIdByFinding.get(finding.id);
-    if (!runId) continue;
-
-    await repo.upsertFinding(runId, {
+    await repo.updateFinding({
       ...finding,
       metricHighlights: needsFigures ? highlights : finding.metricHighlights,
       exposure: degenerate || missingExposure ? exposure : finding.exposure,

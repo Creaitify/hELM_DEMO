@@ -410,6 +410,45 @@ export async function upsertFinding(runId: string, finding: Finding) {
   return finding;
 }
 
+/**
+ * Removes a run and everything that only existed because of it.
+ *
+ * Findings, recommendations and evidence belong to the run that produced them
+ * — nothing else cites them — so deleting a run without them leaves rows that
+ * still surface on the briefing with no way back to where they came from.
+ * Artifacts are deliberately left: a memo somebody was handed is a record of
+ * what was said at the time, and it outlives the investigation behind it.
+ */
+export async function deleteRunCascade(run: IntelligenceRun): Promise<void> {
+  for (const findingId of run.findingIds) {
+    const finding = await getFinding(findingId);
+    for (const evidenceId of finding?.evidenceIds ?? []) {
+      await graph().deleteNode('Evidence', evidenceId);
+    }
+    await graph().deleteNode('Finding', findingId);
+  }
+  for (const recommendationId of run.recommendationIds) {
+    await graph().deleteNode('Recommendation', recommendationId);
+  }
+  for (const decision of await listDecisions(run.id)) {
+    await graph().deleteNode('Decision', decision.id);
+  }
+  await graph().deleteNode('Run', run.id);
+}
+
+/**
+ * Rewrites a finding in place.
+ *
+ * `upsertFinding` takes the producing run because it also draws the PRODUCED
+ * edge. A finding that came from a fixture rather than a run has no such run,
+ * and a maintenance pass that only changes figures does not need one — the
+ * edges it already has are still correct.
+ */
+export async function updateFinding(finding: Finding): Promise<Finding> {
+  await graph().upsertNode('Finding', finding.id, finding as unknown as Record<string, unknown>);
+  return finding;
+}
+
 export async function getFinding(id: string) {
   return graph().getNode<Finding>('Finding', id);
 }
