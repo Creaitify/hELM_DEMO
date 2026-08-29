@@ -12,10 +12,18 @@ import {
   resumeAfterDecision,
   retryRun,
   startRun,
+  type ResumeInput,
 } from '../agents/orchestrator.js';
 import { AGENTS, AGENT_ORDER, poweringTheFleet } from '../agents/registry.js';
 import type { Decision, Recommendation } from '../domain/types.js';
-import { invalid, notFound, requireCsrf, requireWorkspace, sendError } from './context.js';
+import {
+  invalid,
+  notFound,
+  requireCsrf,
+  requireWorkspace,
+  sendError,
+  type WorkspaceContext,
+} from './context.js';
 import { resolveBasis } from './analytics.routes.js';
 import { DEFAULT_SCOPE_ID, WINDOW_LABEL } from '../sample/constants.js';
 import { INTENTS } from '../sample/intelligence.js';
@@ -27,6 +35,40 @@ import { INTENTS } from '../sample/intelligence.js';
  * and a decision memo. The run streams its real stages — the fleet working
  * behind the scenes — rather than a fake percentage.
  */
+/**
+ * The inputs a paused run needs to be picked back up.
+ *
+ * This is deliberately the same shape the start route builds. A run resumed
+ * after approval should be looking at exactly the portfolio a new one would,
+ * not at whatever happened to be in memory when it stopped.
+ */
+async function resumeInputFor(context: WorkspaceContext): Promise<ResumeInput> {
+  const { snapshot, basis } = await resolveBasis(context.workspace.id, DEFAULT_SCOPE_ID);
+  const [accounts, campaigns, creatives] = await Promise.all([
+    repo.listAccounts(context.workspace.id),
+    repo.listCampaigns(context.workspace.id),
+    repo.listCreatives(context.workspace.id),
+  ]);
+
+  return {
+    workspaceId: context.workspace.id,
+    workspaceSlug: context.workspace.slug,
+    user: { id: context.user.id, name: context.user.name },
+    scopeId: DEFAULT_SCOPE_ID,
+    scopeLabel: snapshot.label,
+    rangeLabel: WINDOW_LABEL,
+    currency: context.workspace.defaultCurrency,
+    accounts: accounts.filter((account) => snapshot.accountIds.includes(account.id)),
+    campaigns: campaigns.filter((campaign) => snapshot.accountIds.includes(campaign.accountId)),
+    creatives,
+    basis,
+    // Approving something is meant to produce work you can look at. A resumed
+    // run renders unless there is nothing to render.
+    generateCreative: true,
+    attachBrand: true,
+  };
+}
+
 export async function intelligenceRoutes(app: FastifyInstance) {
   app.get<{ Params: { slug: string } }>('/api/workspaces/:slug/intelligence', async (request, reply) => {
     try {
@@ -260,7 +302,11 @@ export async function intelligenceRoutes(app: FastifyInstance) {
           context: `Run ${request.params.id}`,
         });
 
-        void resumeAfterDecision(request.params.id);
+        // A decision has to be able to restart the fleet even when the run was
+        // seeded, or was started by a process that has since exited. Assembling
+        // the same inputs a fresh run gets means a resumed run reads the same
+        // accounts, campaigns and basis rather than a thinner version of them.
+        void resumeAfterDecision(request.params.id, await resumeInputFor(context)).catch(() => undefined);
 
         return { decision, recommendation: { ...recommendation, status } };
       } catch (error) {

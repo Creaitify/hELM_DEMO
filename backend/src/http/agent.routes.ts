@@ -26,8 +26,22 @@ import * as sample from '../sample/constants.js';
  */
 
 /** Trimmed so the model reads a summary rather than a database dump. */
-function slim<T extends Record<string, unknown>>(rows: T[], limit: number): T[] {
-  return rows.slice(0, limit);
+/**
+ * Caps a tool result, and tells the model that it did.
+ *
+ * A silently truncated list is worse than a short one. The model reads ten
+ * rows, is asked how many there are, and answers ten — stating a wrong figure
+ * with exactly the confidence it would state a right one. Carrying the real
+ * total lets it answer "sixteen, and here are the ten most recent" instead,
+ * which is the only honest thing it can say about a list it has not been
+ * given all of.
+ */
+function slim<T extends Record<string, unknown>>(
+  rows: T[],
+  limit: number,
+): { total: number; shown: number; truncated: boolean; rows: T[] } {
+  const shown = rows.slice(0, limit);
+  return { total: rows.length, shown: shown.length, truncated: rows.length > limit, rows: shown };
 }
 
 function buildExecutor(context: WorkspaceContext): ToolExecutor {

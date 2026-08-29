@@ -1070,9 +1070,150 @@ export function markRecommendationDecided(
   if (recommendation) recommendation.status = status;
 }
 
-/** Resumes a paused run once every proposal has been decided. */
-export async function resumeAfterDecision(runId: string) {
-  const context = active.get(runId);
+/**
+ * Everything needed to pick a run back up that this process did not start.
+ *
+ * The caller assembles it exactly the way the start route assembles a run, so
+ * a resumed run reads the same accounts, campaigns and basis a fresh one would.
+ * It lives here rather than being fetched inside the orchestrator because the
+ * basis resolver belongs to the HTTP layer, and the agents layer should not
+ * reach back up into it.
+ */
+export type ResumeInput = {
+  workspaceId: string;
+  workspaceSlug: string;
+  user: { id: string; name: string };
+  scopeId: string;
+  scopeLabel: string;
+  rangeLabel: string;
+  currency: string;
+  accounts: AdAccount[];
+  campaigns: CampaignSummary[];
+  creatives: CreativeSummary[];
+  basis: DataBasis;
+  /** Render the approved directions. A resumed run defaults to doing so. */
+  generateCreative: boolean;
+  attachBrand: boolean;
+};
+
+/**
+ * Rebuilds a run's working context from the decision graph.
+ *
+ * `active` only ever held runs this process started. A seeded run, or one that
+ * was in flight when the server restarted, has everything it needs in the graph
+ * and nothing in memory — so approving it did nothing at all: the decision and
+ * the audit entry were written, and then `resumeAfterDecision` returned on the
+ * missing map entry and the run sat at "waiting for your approval" forever.
+ *
+ * Rehydrating lets the fleet pick a run up from wherever it was left. Two
+ * things cannot be recovered and are handled rather than faked: a direction's
+ * subline is not persisted on the node output, and the image studio already
+ * treats it as optional; and a run seeded without a workflow has no node
+ * states, so they are inferred from what the run actually produced.
+ */
+export async function rehydrate(runId: string, input: ResumeInput): Promise<RunContext | null> {
+  const existing = active.get(runId);
+  if (existing) return existing;
+
+  const run = await repo.getRun(runId);
+  if (!run) return null;
+
+  const [findings, recommendations, workspaceArtifacts] = await Promise.all([
+    Promise.all(run.findingIds.map((id) => repo.getFinding(id))),
+    Promise.all(run.recommendationIds.map((id) => repo.getRecommendation(id))),
+    repo.listArtifacts(input.workspaceId),
+  ]);
+
+  const liveFindings = findings.filter((entry): entry is Finding => Boolean(entry));
+  const liveRecommendations = recommendations.filter((entry): entry is Recommendation => Boolean(entry));
+
+  const evidence = (
+    await Promise.all(liveFindings.flatMap((finding) => finding.evidenceIds.map((id) => repo.getEvidence(id))))
+  ).filter((entry): entry is Evidence => Boolean(entry));
+
+  const pack = buildEvidencePack({
+    scopeLabel: run.scopeLabel || input.scopeLabel,
+    rangeLabel: run.rangeLabel || input.rangeLabel,
+    currency: input.currency,
+    accounts: input.accounts,
+    campaigns: input.campaigns,
+    creatives: input.creatives,
+    basis: input.basis,
+    focusCampaignIds: [...new Set(liveFindings.flatMap((finding) => finding.affectedCampaignIds))],
+  });
+
+  // A stored workflow is the truth when there is one. A run seeded without one
+  // gets a workflow whose completed steps are the ones whose output exists.
+  const stored = run.workflow ?? [];
+  const nodes = new Map<WorkflowNodeId, WorkflowNode>(
+    emptyWorkflow(env.fleet.maxRevisions).map((node) => [node.id, node]),
+  );
+  for (const node of stored) if (nodes.has(node.id)) nodes.set(node.id, node);
+
+  const directions = recoverDirections(stored);
+
+  if (!stored.length) {
+    const done = (id: WorkflowNodeId, activity: string) => {
+      const node = nodes.get(id)!;
+      nodes.set(id, { ...node, state: 'completed', task: null, activity, progress: 100 });
+    };
+    done('input', `${pack.accounts.filter((account) => account.included).length} accounts read`);
+    if (liveFindings.length) done('analyst', `${liveFindings.length} findings`);
+    if (liveFindings.length) done('review_analysis', 'Basis and confidence checked');
+    if (directions.length) done('creative', `${directions.length} directions`);
+    if (directions.length) done('review_creative', 'Directions checked against the brief');
+  }
+
+  const context: RunContext = {
+    ...input,
+    run,
+    pack,
+    nodes,
+    cancelled: false,
+    intent: run.intent,
+    question: run.title,
+    campaignIds: [...new Set(liveFindings.flatMap((finding) => finding.affectedCampaignIds))],
+    findings: liveFindings,
+    recommendations: liveRecommendations,
+    evidence,
+    directions,
+    artifacts: workspaceArtifacts.filter((artifact) => artifact.linkedRunId === run.id),
+  };
+
+  active.set(runId, context);
+  return context;
+}
+
+/**
+ * Reads creative directions back off the stored node output.
+ *
+ * The directions themselves are not a persisted entity — they live on the
+ * creative node's output, which is what the interface draws. That output keeps
+ * the headline, the rationale and the direction kind, which is everything the
+ * image studio needs bar the subline it treats as optional.
+ */
+function recoverDirections(stored: WorkflowNode[]): RunContext['directions'] {
+  const creative = stored.find((node) => node.id === 'creative');
+  if (creative?.output?.kind !== 'directions') return [];
+  return creative.output.items.map((item) => ({
+    title: item.title,
+    headline: item.title,
+    subline: '',
+    rationale: item.detail ?? '',
+    direction: item.meta ?? 'product-proof',
+  }));
+}
+
+/**
+ * Resumes a paused run once every proposal has been decided.
+ *
+ * `resume` is what makes this work for a run this process did not start. Given
+ * it, a run that only exists in the graph is rebuilt and carried forward;
+ * without it the call is still a no-op, which is the right behaviour for the
+ * internal callers that already hold a live context.
+ */
+export async function resumeAfterDecision(runId: string, resume?: ResumeInput) {
+  const context = active.get(runId) ?? (resume ? await rehydrate(runId, resume) : null);
   if (!context) return;
   if (context.run.stage !== 'waiting_for_approval') return;
   if (context.recommendations.some((entry) => entry.status === 'proposed')) {
@@ -1092,7 +1233,30 @@ export async function resumeAfterDecision(runId: string) {
     progress: 100,
   });
 
-  void finish(context).catch(() => undefined);
+  void carryOn(context, approved).catch(async (error) => {
+    const reason = error instanceof Error ? error.message : String(error);
+    setNode(context, 'output', { state: 'failed', error: reason, retryable: true });
+    await setStage(context, 'failed', `The run stopped after approval: ${reason}`);
+    fleetBus.emit({ type: 'run.failed', runId: context.run.id, reason, at: nowIso() });
+    active.delete(context.run.id);
+  });
+}
+
+/**
+ * What happens after the person decides.
+ *
+ * Approving something is supposed to put the fleet back to work, and for a run
+ * that was resumed from the graph there is usually nothing drawn yet — the
+ * creative step never ran, or ran in a process that has since exited. So an
+ * approval with work to show for it and no directions to render sends the
+ * creative specialist in first, through the same review gate a fresh run uses.
+ * Nothing was approved, or nothing to draw, and it goes straight to the memo.
+ */
+async function carryOn(context: RunContext, approved: number) {
+  if (approved > 0 && context.generateCreative && context.directions.length === 0) {
+    await runCreative(context);
+  }
+  await finish(context);
 }
 
 /* -------------------------------------------------- 5. image generation -- */
