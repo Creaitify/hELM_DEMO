@@ -86,6 +86,120 @@ export function RankedBars({
   );
 }
 
+/**
+ * A modelled figure with a low and a high, drawn as a band rather than a bar.
+ *
+ * A single bar would state a precision the estimate does not have. The band is
+ * the honest shape: it occupies the range it actually covers, and the midpoint
+ * is marked so the rows can still be compared at a glance without implying the
+ * midpoint is the answer.
+ */
+export function RangeBars({
+  question,
+  basis,
+  rows,
+  className,
+}: {
+  question: string;
+  basis?: string;
+  rows: { label: string; low: number; high: number; display: string; color?: string; note?: string }[];
+  className?: string;
+}) {
+  const ceiling = Math.max(...rows.map((row) => row.high), 1);
+  return (
+    <figure className={cn('min-w-0', className)}>
+      <figcaption className="mb-3">
+        <h3 className="text-[15px] font-semibold leading-snug text-ink-950">{question}</h3>
+        {basis ? <p className="mt-1 text-[12px] leading-[17px] text-ink-500">{basis}</p> : null}
+      </figcaption>
+      <ul className="space-y-3">
+        {rows.map((row) => {
+          const left = (Math.min(row.low, row.high) / ceiling) * 100;
+          const width = Math.max(2, (Math.abs(row.high - row.low) / ceiling) * 100);
+          const mid = left + width / 2;
+          return (
+            <li key={row.label}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="truncate text-[13px] text-ink-700">{row.label}</span>
+                <span className="mono shrink-0 text-[13px] font-medium text-ink-950">{row.display}</span>
+              </div>
+              <div className="relative mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-sunk">
+                <div
+                  className="absolute inset-y-0 rounded-full"
+                  style={{ left: `${left}%`, width: `${width}%`, background: row.color ?? 'var(--helm-500)' }}
+                />
+                {/* The midpoint is a reading aid, never the headline figure. */}
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-y-0 w-px bg-surface/70"
+                  style={{ left: `${mid}%` }}
+                />
+              </div>
+              {row.note ? <p className="mt-1 text-[12px] text-ink-400">{row.note}</p> : null}
+            </li>
+          );
+        })}
+      </ul>
+    </figure>
+  );
+}
+
+/**
+ * Counts over time, one column per period.
+ *
+ * Bars sit on a shared baseline because the question is always "how many, and
+ * when" — a line would imply the quiet days are a continuous quantity falling
+ * to zero rather than days on which nothing happened.
+ */
+export function ColumnChart({
+  question,
+  basis,
+  columns,
+  className,
+}: {
+  question: string;
+  basis?: string;
+  columns: { label: string; value: number; caption?: string; color?: string }[];
+  className?: string;
+}) {
+  const max = Math.max(...columns.map((column) => column.value), 1);
+  return (
+    <figure className={cn('min-w-0', className)}>
+      <figcaption className="mb-3">
+        <h3 className="text-[15px] font-semibold leading-snug text-ink-950">{question}</h3>
+        {basis ? <p className="mt-1 text-[12px] leading-[17px] text-ink-500">{basis}</p> : null}
+      </figcaption>
+
+      <div className="flex h-[96px] items-end gap-[3px] border-b border-line-strong" aria-hidden="true">
+        {columns.map((column) => (
+          <div
+            key={column.label}
+            title={`${column.label}: ${column.caption ?? column.value}`}
+            className="min-w-0 flex-1 rounded-t-[2px] transition-[height] duration-[var(--t-chart)]"
+            style={{
+              height: column.value === 0 ? '2px' : `${Math.max(6, (column.value / max) * 100)}%`,
+              background:
+                column.value === 0 ? 'var(--line)' : (column.color ?? 'var(--helm-500)'),
+            }}
+          />
+        ))}
+      </div>
+
+      {/* The columns are decorative markup; the values themselves stay readable. */}
+      <ul className="sr-only">
+        {columns.map((column) => (
+          <li key={column.label}>{`${column.label}: ${column.caption ?? column.value}`}</li>
+        ))}
+      </ul>
+
+      <div className="mono mt-1.5 flex justify-between text-[11px] text-ink-400">
+        <span>{columns[0]?.label}</span>
+        <span>{columns[columns.length - 1]?.label}</span>
+      </div>
+    </figure>
+  );
+}
+
 /** Two-part share only. Anything with more parts becomes a bar chart. */
 export function ShareBar({
   question,

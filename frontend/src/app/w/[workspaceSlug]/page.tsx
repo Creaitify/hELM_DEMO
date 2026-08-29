@@ -8,6 +8,7 @@ import { RankedBars, ShareBar } from '@/components/data/Charts';
 import { InlineNotice, SectionHeading } from '@/components/primitives/States';
 import { StatusBadge } from '@/components/primitives/Status';
 import { Disclosure } from '@/components/primitives/Controls';
+import { DecisionAnalytics } from '@/features/briefing/DecisionAnalytics';
 import { DecisionBrief } from '@/features/briefing/DecisionBrief';
 import { PerformanceMovement } from '@/features/briefing/PerformanceMovement';
 import { IconArrowRight, IconShare, ProviderMark } from '@/components/icons';
@@ -27,6 +28,7 @@ import {
   blendedCampaigns as sampleCampaigns,
   channelContribution as sampleContribution,
   creatives as sampleCreatives,
+  decisions as sampleDecisions,
   evidence as sampleEvidence,
   findings as sampleFindings,
   partialNotice,
@@ -238,6 +240,22 @@ export default async function BriefingPage({
             </div>
           </div>
         </section>
+
+        {/*
+          The queue, priced, before the findings that make it up.
+
+          The movement above says what changed. This says what the change is
+          worth and how fast the last ones like it were answered — the two
+          things a reader needs to decide what to open first. The findings
+          themselves follow, unchanged.
+        */}
+        <DecisionAnalytics
+          decision={decisionFindings}
+          recommendations={recommendations}
+          runs={runs}
+          decisions={sampleDecisions}
+          nowIso={NOW_ISO}
+        />
 
         <DecisionBrief
           workspaceSlug={workspaceSlug}

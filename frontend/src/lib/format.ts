@@ -205,6 +205,25 @@ export function formatRelative(iso: string | null, nowIso: string): string {
   return formatDate(iso.split('T')[0]);
 }
 
+/**
+ * A span of elapsed time, in the largest unit that still says something.
+ *
+ * Used for figures like "how long a recommendation waited", where minutes
+ * matter under an hour and stop mattering above a day.
+ */
+export function formatDuration(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined || Number.isNaN(ms)) return 'Not available';
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return 'under a minute';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours < 24) return rest ? `${hours}h ${rest}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const restHours = hours % 24;
+  return restHours ? `${days}d ${restHours}h` : `${days}d`;
+}
+
 export function formatClock(iso: string): string {
   const time = iso.split('T')[1] ?? '';
   return time.slice(0, 5);
