@@ -7,6 +7,7 @@ import { env, setReasoningLive } from './env.js';
 import { closeGraph, initGraph } from './graph/index.js';
 import { verifyAnthropic } from './providers/anthropic.js';
 import { seedGraph } from './seed/seed.js';
+import { repairStoredFindings } from './seed/repair.js';
 import { authRoutes } from './http/auth.routes.js';
 import { workspaceRoutes } from './http/workspace.routes.js';
 import { analyticsRoutes } from './http/analytics.routes.js';
@@ -57,6 +58,12 @@ async function main() {
 
   await initGraph((message) => app.log.info(message));
   await seedGraph((message) => app.log.info(message));
+
+  // Findings written before the analyst derived its own figures carry an empty
+  // metric strip and, in some cases, an exposure whose low and high are the
+  // same wrong number. Recomputing them at boot is idempotent and means nobody
+  // has to know a repair was ever needed.
+  await repairStoredFindings((message) => app.log.info(message));
 
   // A key in .env is not the same as a key that works. Find out at boot.
   const reasoning = await verifyAnthropic();

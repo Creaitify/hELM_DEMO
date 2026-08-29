@@ -13,6 +13,7 @@ import type {
   FleetAgentHealth,
   FleetSnapshot,
   IntelligenceRun,
+  MetricValue,
   Recommendation,
   RunStage,
   RunStageRecord,
@@ -92,9 +93,21 @@ type RunContext = StartRunInput & {
   evidence: Evidence[];
   directions: { title: string; headline: string; subline: string; rationale: string; direction: string }[];
   artifacts: Artifact[];
+  /** Set once the run has been carried past approval, so it happens once. */
+  resuming?: boolean;
 };
 
 const active = new Map<string, RunContext>();
+
+/**
+ * Rehydrations in flight.
+ *
+ * Rebuilding a context is several round trips, and decisions arrive faster
+ * than that. Without this, two of them both see an empty `active`, both
+ * rebuild, and the second overwrites the first — discarding whatever the first
+ * had already recorded on it.
+ */
+const rehydrating = new Map<string, Promise<RunContext | null>>();
 const invocationLog: AgentInvocation[] = [];
 
 const INTENT_TITLE: Record<string, string> = {
@@ -690,6 +703,103 @@ async function runInput(context: RunContext) {
 
 /* ----------------------------------------------------------- 2. analyst -- */
 
+/**
+ * The figures a finding is actually about.
+ *
+ * Derived from the evidence pack rather than asked of the model. The pack is
+ * what the analysis was computed on, so deriving them is the only way the
+ * numbers on the card are guaranteed to be the numbers the finding was
+ * reasoned from. Asking a model to restate figures back is precisely the step
+ * at which one gets rounded, transposed or invented — and the analyst's own
+ * instruction is never to state a value that is not present.
+ *
+ * A previous value is recovered from the movement rather than stored: a delta
+ * of +31% on a CPA of 2,449 means the previous CPA was 2,449 / 1.31. That is
+ * arithmetic on reported figures, not an estimate.
+ */
+export function highlightsFor(pack: EvidencePack, campaignIds: string[]): MetricValue[] {
+  const { currency } = pack;
+  const before = (value: number | null, delta: number | null | undefined): number | null => {
+    if (value === null || delta === null || delta === undefined || delta <= -1) return null;
+    return value / (1 + delta);
+  };
+
+  const named = pack.movement.filter((row) => campaignIds.includes(row.campaignId));
+  const lead = [...named].sort((a, b) => b.spend - a.spend)[0];
+
+  if (lead) {
+    const highlights: MetricValue[] = [];
+
+    if (lead.cpa !== null) {
+      highlights.push({
+        key: 'cpa',
+        value: lead.cpa,
+        currency,
+        previousValue: before(lead.cpa, lead.deltaCpa),
+        deltaRatio: lead.deltaCpa ?? null,
+      });
+    }
+
+    highlights.push({
+      key: 'spend',
+      value: lead.spend,
+      currency,
+      previousValue: before(lead.spend, lead.deltaSpend),
+      deltaRatio: lead.deltaSpend ?? null,
+    });
+
+    // A fatigue finding is about the asset, so the asset's own figures lead
+    // over anything else the campaign happens to be doing.
+    const worn = pack.creativeFatigue.find((entry) => campaignIds.includes(entry.campaignId));
+    if (worn?.hookRate !== null && worn?.hookRate !== undefined) {
+      highlights.unshift({ key: 'hook_rate', value: worn.hookRate, deltaRatio: null });
+    }
+    if (worn?.frequency !== null && worn?.frequency !== undefined) {
+      highlights.push({ key: 'frequency', value: worn.frequency, deltaRatio: null });
+    }
+
+    return highlights.slice(0, 3);
+  }
+
+  // A finding about the account rather than a campaign — an excluded account,
+  // a basis problem — is about the blended totals.
+  const { totals } = pack;
+  return [
+    { key: 'spend', value: totals.spend, currency, deltaRatio: null },
+    ...(totals.cpa === null ? [] : [{ key: 'cpa' as const, value: totals.cpa, currency, deltaRatio: null }]),
+    ...(totals.roas === null ? [] : [{ key: 'roas' as const, value: totals.roas, deltaRatio: null }]),
+  ];
+}
+
+/**
+ * What the finding costs if nothing changes.
+ *
+ * Sized here rather than taken from the model. Asked for minor units the model
+ * returned major ones — a campaign carrying INR 7,64,000 came back as INR
+ * 7,640 of exposure, a hundredfold error stated with full confidence — and it
+ * returned the same figure for the low and the high, which is not a range at
+ * all. The arithmetic is four operations and every input is already in the
+ * pack, so it is done here where it can be checked.
+ *
+ * A finding whose campaign did not get more expensive has no exposure to size,
+ * and gets none. An absent figure is honest; a fabricated one is not.
+ */
+export function exposureFor(pack: EvidencePack, campaignIds: string[]): Finding['exposure'] {
+  const named = pack.movement.filter((row) => campaignIds.includes(row.campaignId));
+  const lead = [...named].sort((a, b) => (b.deltaCpa ?? 0) - (a.deltaCpa ?? 0))[0];
+  if (!lead || (lead.deltaCpa ?? 0) <= 0) return undefined;
+
+  // The extra cost of holding the current conversion volume at the new cost
+  // per conversion, floored so a small movement on a large spend still reads.
+  const central = lead.spend * Math.max(0.05, lead.deltaCpa ?? 0.1);
+
+  return {
+    low: { currency: pack.currency, minorUnits: String(Math.round(central * 100 * 0.7)) },
+    high: { currency: pack.currency, minorUnits: String(Math.round(central * 100 * 1.25)) },
+    note: `Sized as the extra cost of holding ${lead.name}'s current conversion volume at its new cost per conversion, over the next 14 days.`,
+  };
+}
+
 const FINDING_SHAPE = `{
   "findings": [{
     "title": "one precise sentence",
@@ -698,9 +808,6 @@ const FINDING_SHAPE = `{
     "severity": "decision" | "watch" | "stable",
     "confidence": "high" | "medium" | "low",
     "confidenceNote": "why this confidence and not another",
-    "exposureLowMinorUnits": "string of minor units, or null",
-    "exposureHighMinorUnits": "string of minor units, or null",
-    "exposureNote": "how the exposure was sized",
     "affectedCampaignIds": ["campaign id from the pack"],
     "recommendedNextStep": "one sentence"
   }],
@@ -777,19 +884,12 @@ Write two to four findings, worst-cost first, and one capped proposal for each d
         severity: (['decision', 'watch', 'stable'].includes(row.severity) ? row.severity : 'watch') as Finding['severity'],
         confidence: (['high', 'medium', 'low'].includes(row.confidence) ? row.confidence : 'medium') as Finding['confidence'],
         confidenceNote: String(row.confidenceNote ?? 'Confidence follows the completeness of the window.'),
-        exposure:
-          row.exposureLowMinorUnits && row.exposureHighMinorUnits
-            ? {
-                low: { currency: context.pack.currency, minorUnits: String(row.exposureLowMinorUnits) },
-                high: { currency: context.pack.currency, minorUnits: String(row.exposureHighMinorUnits) },
-                note: String(row.exposureNote ?? 'Sized from the movement in the window.'),
-              }
-            : undefined,
+        exposure: exposureFor(context.pack, affected),
         evidenceIds: context.evidence.map((entry) => entry.id),
         basis: context.basis,
         recommendedNextStep: row.recommendedNextStep ? String(row.recommendedNextStep) : undefined,
         affectedCampaignIds: affected,
-        metricHighlights: [],
+        metricHighlights: highlightsFor(context.pack, affected),
         sourceAccountIds: context.pack.blendedAccountIds,
         authoredBy: 'analyst',
       };
@@ -1115,6 +1215,15 @@ export async function rehydrate(runId: string, input: ResumeInput): Promise<RunC
   const existing = active.get(runId);
   if (existing) return existing;
 
+  const inFlight = rehydrating.get(runId);
+  if (inFlight) return inFlight;
+
+  const work = buildContext(runId, input).finally(() => rehydrating.delete(runId));
+  rehydrating.set(runId, work);
+  return work;
+}
+
+async function buildContext(runId: string, input: ResumeInput): Promise<RunContext | null> {
   const run = await repo.getRun(runId);
   if (!run) return null;
 
@@ -1216,6 +1325,27 @@ export async function resumeAfterDecision(runId: string, resume?: ResumeInput) {
   const context = active.get(runId) ?? (resume ? await rehydrate(runId, resume) : null);
   if (!context) return;
   if (context.run.stage !== 'waiting_for_approval') return;
+
+  /*
+   * The statuses are re-read from the graph rather than trusted from memory.
+   *
+   * Deciding several proposals in quick succession fires several of these, and
+   * each one is started without waiting for the last. Two can find no context
+   * in `active` and both rehydrate; the one that finishes second reads a
+   * recommendation list from before the other decision was written, and the
+   * run waits forever on a proposal that was in fact already approved.
+   *
+   * Re-reading makes the check below authoritative whatever order they land
+   * in. It is one round trip per proposal, on a path that runs once per
+   * decision.
+   */
+  await Promise.all(
+    context.recommendations.map(async (recommendation) => {
+      const stored = await repo.getRecommendation(recommendation.id);
+      if (stored) recommendation.status = stored.status;
+    }),
+  );
+
   if (context.recommendations.some((entry) => entry.status === 'proposed')) {
     const remaining = context.recommendations.filter((entry) => entry.status === 'proposed').length;
     setNode(context, 'approval', {
@@ -1224,6 +1354,11 @@ export async function resumeAfterDecision(runId: string, resume?: ResumeInput) {
     });
     return;
   }
+
+  // Two decisions landing together can both reach this line. The run is only
+  // carried forward once.
+  if (context.resuming) return;
+  context.resuming = true;
 
   const approved = context.recommendations.filter((entry) => entry.status === 'approved').length;
   setNode(context, 'approval', {
@@ -1423,6 +1558,71 @@ async function finish(context: RunContext) {
   );
   fleetBus.emit({ type: 'run.completed', runId: context.run.id, run: context.run, at: nowIso() });
   active.delete(context.run.id);
+}
+
+/* --------------------------------------------------------------- repair -- */
+
+/**
+ * Recomputes the figures on findings that were written without them.
+ *
+ * Findings produced before the analyst derived its own numbers carry an empty
+ * metric strip and, where the model was asked to size the exposure itself, a
+ * range whose low and high are the same hundredfold-wrong figure. They are
+ * still perfectly good findings — the observation, the confidence and the
+ * evidence behind them are untouched — so they are repaired rather than
+ * discarded.
+ *
+ * It is safe to run repeatedly. A finding whose figures already derive from
+ * the pack recomputes to the same values.
+ */
+export async function repairFindingFigures(
+  workspaceId: string,
+  pack: EvidencePack,
+): Promise<{ scanned: number; repaired: number }> {
+  const [findings, runs] = await Promise.all([
+    repo.listFindings(workspaceId),
+    repo.listRuns(workspaceId),
+  ]);
+
+  // A finding does not carry its run, so the producing run is recovered from
+  // the run that claims it. Re-filing needs it to keep the PRODUCED edge.
+  const runIdByFinding = new Map<string, string>();
+  for (const run of runs) {
+    for (const findingId of run.findingIds) if (!runIdByFinding.has(findingId)) runIdByFinding.set(findingId, run.id);
+  }
+
+  let repaired = 0;
+
+  for (const finding of findings) {
+    const highlights = highlightsFor(pack, finding.affectedCampaignIds);
+    const exposure = exposureFor(pack, finding.affectedCampaignIds);
+
+    // A stored exposure whose low equals its high is not a range and was never
+    // meant to be one. An absent one on a campaign whose cost rose is the same
+    // problem wearing different clothes: two findings about the same campaign
+    // showing different amounts of money is exactly the inconsistency this is
+    // here to remove. Both are replaced by the derivation, which is also what
+    // the analyst now writes, so stored and new findings are treated alike.
+    const degenerate =
+      Boolean(finding.exposure) &&
+      finding.exposure!.low.minorUnits === finding.exposure!.high.minorUnits;
+    const missingExposure = !finding.exposure && Boolean(exposure);
+    const needsFigures = finding.metricHighlights.length === 0;
+
+    if (!needsFigures && !degenerate && !missingExposure) continue;
+
+    const runId = runIdByFinding.get(finding.id);
+    if (!runId) continue;
+
+    await repo.upsertFinding(runId, {
+      ...finding,
+      metricHighlights: needsFigures ? highlights : finding.metricHighlights,
+      exposure: degenerate || missingExposure ? exposure : finding.exposure,
+    });
+    repaired += 1;
+  }
+
+  return { scanned: findings.length, repaired };
 }
 
 /* ---------------------------------------------------------------- retry -- */
