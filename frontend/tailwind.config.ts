@@ -20,6 +20,17 @@ const config: Config = {
           faint: 'var(--night-faint)',
         },
         canvas: 'var(--canvas)',
+        rail: {
+          DEFAULT: 'var(--rail-bg)',
+          raised: 'var(--rail-bg-raised)',
+          line: 'var(--rail-line)',
+          'line-strong': 'var(--rail-line-strong)',
+          ink: 'var(--rail-ink)',
+          'ink-strong': 'var(--rail-ink-strong)',
+          muted: 'var(--rail-muted)',
+          accent: 'var(--rail-accent)',
+          'accent-soft': 'var(--rail-accent-soft)',
+        },
         surface: {
           DEFAULT: 'var(--surface)',
           subtle: 'var(--surface-subtle)',

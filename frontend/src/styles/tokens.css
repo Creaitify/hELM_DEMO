@@ -51,6 +51,27 @@
   --action-400: #f59e0b;
   --action-ink: #111827;
 
+  /* ---- The rail ----
+     The one dark object in the product.
+
+     Monochrome asks for a single anchor, so the rail takes the primary
+     (Gray-900) as a ground rather than sitting white-on-white beside a white
+     canvas. Its own ramp is declared here rather than by overriding --surface,
+     because the popovers that open out of the rail are its children and must
+     stay on paper.
+
+     Amber does exactly one job here: it marks where you are. Nothing else in
+     the rail is allowed to be that colour. */
+  --rail-bg: #111827;
+  --rail-bg-raised: #1f2937;
+  --rail-line: rgba(255, 255, 255, 0.08);
+  --rail-line-strong: rgba(255, 255, 255, 0.16);
+  --rail-ink: #e5e7eb;
+  --rail-ink-strong: #ffffff;
+  --rail-muted: #9ca3af;
+  --rail-accent: #f59e0b;
+  --rail-accent-soft: rgba(245, 158, 11, 0.12);
+
   /* ---- Chips ----
      A neutral chip needs a ground of its own. Against a white card the sunk
      surface was close enough to white that the chip read as loose text rather

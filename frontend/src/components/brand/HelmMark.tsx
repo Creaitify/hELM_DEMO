@@ -10,12 +10,33 @@ export function HelmMark({
   className,
 }: {
   size?: number;
-  tone?: 'light' | 'dark' | 'current';
+  /**
+   * `dark` is the public night world; `rail` is the product's own dark ground,
+   * which is monochrome and takes the amber accent for the bearing rather than
+   * the marketing periwinkle. The two grounds are not interchangeable.
+   */
+  tone?: 'light' | 'dark' | 'rail' | 'current';
   className?: string;
 }) {
-  const ring = tone === 'dark' ? 'rgba(255,255,255,.30)' : tone === 'light' ? 'var(--line-strong)' : 'currentColor';
-  const ticks = tone === 'dark' ? 'rgba(255,255,255,.44)' : tone === 'light' ? 'var(--ink-400)' : 'currentColor';
-  const bearing = tone === 'dark' ? '#A9BDFF' : 'var(--helm-500)';
+  const ring =
+    tone === 'dark'
+      ? 'rgba(255,255,255,.30)'
+      : tone === 'rail'
+        ? 'var(--rail-line-strong)'
+        : tone === 'light'
+          ? 'var(--line-strong)'
+          : 'currentColor';
+  const ticks =
+    tone === 'dark'
+      ? 'rgba(255,255,255,.44)'
+      : tone === 'rail'
+        ? 'var(--rail-muted)'
+        : tone === 'light'
+          ? 'var(--ink-400)'
+          : 'currentColor';
+  // The bearing is the one decisive stroke in the mark, so on the rail it is
+  // the one place the accent belongs.
+  const bearing = tone === 'dark' ? '#A9BDFF' : tone === 'rail' ? 'var(--rail-accent)' : 'var(--helm-500)';
 
   return (
     <svg

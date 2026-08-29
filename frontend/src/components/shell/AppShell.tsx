@@ -75,7 +75,7 @@ export function AppShell({
     <div className="flex min-h-dvh bg-canvas">
       {/* The rail reads the tab from the URL, so it needs its own boundary
           or the whole route below loading.tsx de-opts to client rendering. */}
-      <Suspense fallback={<div className="hidden w-[216px] shrink-0 border-r border-line bg-surface lg:block" />}>
+      <Suspense fallback={<div className="hidden w-[228px] shrink-0 border-r border-rail-line bg-rail lg:block" />}>
         <AppRail
           workspace={workspace}
           workspaces={workspaces}
