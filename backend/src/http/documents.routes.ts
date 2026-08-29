@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../graph/repository.js';
-import type { Artifact, Finding, Recommendation } from '../domain/types.js';
+import type { Artifact, Finding, MetricValue, Recommendation } from '../domain/types.js';
 import { invalid, notFound, requireCsrf, requireWorkspace, sendError } from './context.js';
+import { deriveAnalytics, resolveBasis } from './analytics.routes.js';
+import { campaignReportMarkdown, campaignReportTitle, type CampaignReportInput } from './documents.report.js';
+import { DEFAULT_SCOPE_ID, WINDOW_LABEL } from '../sample/constants.js';
+import { scoreline as sampleScoreline } from '../sample/scoreline.js';
 import {
   CONTENT_TYPE,
   FORMATS,
@@ -103,6 +107,96 @@ function render(
   return { body: markdown, contentType: CONTENT_TYPE.md };
 }
 
+/**
+ * Everything the campaign performance report is written from.
+ *
+ * It reads the same analysis the briefing reads, through the same resolver, so
+ * the document and the screen can never disagree about what the account did.
+ */
+async function campaignReportInput(
+  workspaceId: string,
+  workspaceName: string,
+  defaultCurrency: string,
+  preparedBy: string,
+  scopeId: string,
+): Promise<CampaignReportInput> {
+  const { snapshot, basis } = await resolveBasis(workspaceId, scopeId);
+  const currency = basis.accountBasis[0]?.currency ?? defaultCurrency;
+
+  const [accounts, campaigns, creatives, findings, derived] = await Promise.all([
+    repo.listAccounts(workspaceId),
+    repo.listCampaigns(workspaceId),
+    repo.listCreatives(workspaceId),
+    repo.listFindings(workspaceId),
+    deriveAnalytics(workspaceId, basis, currency),
+  ]);
+
+  const inScopeAccounts = accounts.filter((account) => snapshot.accountIds.includes(account.id));
+  const inScopeCampaigns = campaigns.filter((campaign) => snapshot.accountIds.includes(campaign.accountId));
+  const campaignIds = new Set(inScopeCampaigns.map((campaign) => campaign.id));
+
+  // Only the proposals attached to findings this report actually discusses.
+  const reported = findings.slice(0, 8);
+  const recommendations = (
+    await Promise.all(reported.map((finding) => repo.listRecommendations(finding.id)))
+  ).flat();
+
+  return {
+    workspaceName,
+    scopeLabel: snapshot.label,
+    rangeLabel: WINDOW_LABEL,
+    currency,
+    basis,
+    accounts: inScopeAccounts,
+    campaigns: inScopeCampaigns,
+    creatives: creatives.filter((creative) => campaignIds.has(creative.campaignId)),
+    scoreline: (derived?.scoreline ?? sampleScoreline) as MetricValue[],
+    findings: reported,
+    recommendations,
+    measured: derived !== null,
+    preparedBy,
+    preparedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * What the shelf itself says.
+ *
+ * A shelf of documents is a record of how much of the fleet's work has
+ * actually been written down and handed over, which is a different question
+ * from how much work it did. These are the four numbers that answer it, and
+ * every one is counted rather than modelled.
+ */
+function documentAnalytics(documents: Artifact[], runs: { id: string; stage: string }[]) {
+  const written = new Set(documents.map((document) => document.linkedRunId).filter(Boolean));
+  const finished = runs.filter((run) => run.stage === 'complete');
+
+  const byStatus = documents.reduce<Record<string, number>>(
+    (counts, document) => ({ ...counts, [document.status]: (counts[document.status] ?? 0) + 1 }),
+    {},
+  );
+
+  const words = documents.reduce(
+    (total, document) => total + (document.content?.trim().split(/\s+/).filter(Boolean).length ?? 0),
+    0,
+  );
+
+  const latest = documents
+    .map((document) => Date.parse(document.updatedAt))
+    .filter((value) => !Number.isNaN(value))
+    .sort((a, b) => b - a)[0];
+
+  return {
+    total: documents.length,
+    byStatus,
+    words,
+    /** Finished investigations that nobody has written up yet. */
+    unwrittenRuns: finished.filter((run) => !written.has(run.id)).length,
+    coverage: finished.length ? Math.round((finished.filter((run) => written.has(run.id)).length / finished.length) * 100) : null,
+    lastWrittenAt: latest ? new Date(latest).toISOString() : null,
+  };
+}
+
 export async function documentRoutes(app: FastifyInstance) {
   /**
    * The documents shelf, and what could be written next.
@@ -135,6 +229,7 @@ export async function documentRoutes(app: FastifyInstance) {
         formats: FORMATS,
         canWrite: context.can('library.create'),
         canPublish: context.can('library.publish'),
+        analytics: documentAnalytics(documents, runs),
         /** Only a finished run has a conclusion worth writing down. */
         sources: runs
           .filter((run) => run.stage === 'complete' || run.stage === 'waiting_for_approval')
@@ -199,6 +294,107 @@ export async function documentRoutes(app: FastifyInstance) {
         });
 
         return reply.status(201).send({ document });
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  /**
+   * Writes the campaign performance report.
+   *
+   * The other writer needs an investigation to write up. This one needs
+   * nothing but the account: it is the standing report on what the analysis
+   * already says, which is the document somebody has to produce on a Monday
+   * whether or not the fleet has been asked a question that week.
+   */
+  app.post<{ Params: { slug: string }; Body: { scopeId?: string; title?: string } }>(
+    '/api/workspaces/:slug/documents/campaign-report',
+    async (request, reply) => {
+      try {
+        requireCsrf(request);
+        const context = await requireWorkspace(request, request.params.slug, 'library.create');
+
+        const input = await campaignReportInput(
+          context.workspace.id,
+          context.workspace.name,
+          context.workspace.defaultCurrency,
+          context.user.name,
+          request.body?.scopeId ?? DEFAULT_SCOPE_ID,
+        );
+        const markdown = campaignReportMarkdown(input);
+
+        const decisionGrade = input.findings.filter((finding) => finding.severity === 'decision').length;
+
+        const document: Artifact = {
+          id: `art_report_${randomUUID().slice(0, 8)}`,
+          title: request.body?.title?.trim() || campaignReportTitle(input),
+          type: 'decision_memo',
+          mode: 'reports',
+          updatedAt: new Date().toISOString(),
+          createdBy: context.user.name,
+          status: 'draft',
+          summary:
+            `${input.campaigns.length} campaigns, ${input.findings.length} findings` +
+            `${decisionGrade ? `, ${decisionGrade} needing a decision` : ''}. ` +
+            `${input.measured ? 'Folded from stored measurements' : 'Sample portfolio'} over ${input.rangeLabel}.`,
+          tags: [
+            input.scopeLabel,
+            'Campaign performance',
+            `${input.campaigns.length} campaigns`,
+            ...(input.measured ? ['Measured'] : ['Sample data']),
+          ],
+          format: 'Markdown',
+          // Frozen at the moment of writing, like every other document here.
+          content: markdown,
+        };
+
+        await repo.upsertArtifact(context.workspace.id, document);
+        await repo.recordAudit(context.workspace.id, {
+          id: `aud_${randomUUID().slice(0, 8)}`,
+          at: new Date().toISOString(),
+          actor: context.user.name,
+          action: 'wrote a campaign performance report',
+          target: document.title,
+          context: `${input.campaigns.length} campaigns over ${input.rangeLabel}`,
+        });
+
+        return reply.status(201).send({ document });
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  /**
+   * The report as it would be written right now, without filing it.
+   *
+   * Writing a document is a commitment — it goes on the shelf, it lands in the
+   * audit, and it is frozen. Being able to read it first is what makes that a
+   * decision rather than a gamble.
+   */
+  app.get<{ Params: { slug: string }; Querystring: { scopeId?: string } }>(
+    '/api/workspaces/:slug/documents/campaign-report/preview',
+    async (request, reply) => {
+      try {
+        const context = await requireWorkspace(request, request.params.slug, 'library.read');
+        const input = await campaignReportInput(
+          context.workspace.id,
+          context.workspace.name,
+          context.workspace.defaultCurrency,
+          context.user.name,
+          request.query.scopeId ?? DEFAULT_SCOPE_ID,
+        );
+        const markdown = campaignReportMarkdown(input);
+        return {
+          title: campaignReportTitle(input),
+          markdown,
+          html: markdownToHtml(markdown),
+          formats: FORMATS,
+          measured: input.measured,
+          campaignCount: input.campaigns.length,
+          findingCount: input.findings.length,
+        };
       } catch (error) {
         return sendError(reply, error);
       }

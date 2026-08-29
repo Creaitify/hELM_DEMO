@@ -41,6 +41,43 @@ failing review sends it back, up to `MAX_AGENT_REVISIONS` times. Nothing
 reaches an ad account: every recommendation is a proposal, and approving one
 records a decision rather than performing it.
 
+Approving the last open proposal is what restarts the fleet. The run picks up
+at the approval node and carries on through image generation to the memo — and
+it does that whether or not the process that started the run is still alive,
+because the context is rebuilt from the decision graph when it is not in
+memory. A run seeded into the database resumes the same way.
+
+## Documents
+
+Two writers, both producing one frozen Markdown body that every other format is
+rendered from — PDF, Word, HTML and JSON, with no second builder to drift.
+
+| Written from | Endpoint |
+|---|---|
+| One investigation | `POST /api/workspaces/:slug/documents` |
+| The campaign analysis as it stands | `POST /api/workspaces/:slug/documents/campaign-report` |
+
+The second needs no investigation at all. It reads the same analysis the
+briefing reads, through the same resolver, so the document and the screen can
+never disagree about what the account did. `GET …/campaign-report/preview`
+returns it unfiled, because writing one is a commitment: it goes on the shelf,
+it lands in the audit, and it is frozen at that moment.
+
+The shelf reports on itself — how many documents, how many words, and what
+share of finished investigations have actually been written up.
+
+## Verifying the fleet
+
+```bash
+cd backend && npm run verify:agents
+```
+
+Runs against a live API and a live model, because a mocked fleet passing tells
+you nothing. It checks that the agent chat calls its tools and quotes real
+figures, that approving every proposal actually moves a run to complete with a
+memo filed, and that every document downloads as a structurally valid file with
+a real body rather than a title and a summary.
+
 ## Configuration
 
 Everything lives in `backend/.env` — copy `backend/.env.example` to start. The

@@ -206,11 +206,24 @@ export const getStudio = (slug: string) => apiGet<StudioResponse>(`/api/workspac
 
 export type DocumentFormat = { id: 'pdf' | 'doc' | 'md' | 'html' | 'json'; label: string; detail: string };
 
+/** What the shelf says about itself, counted rather than modelled. */
+export type DocumentAnalytics = {
+  total: number;
+  byStatus: Record<string, number>;
+  words: number;
+  /** Finished investigations nobody has written up yet. */
+  unwrittenRuns: number;
+  /** Share of finished investigations that have a document, or null if none. */
+  coverage: number | null;
+  lastWrittenAt: string | null;
+};
+
 export type DocumentsResponse = {
   documents: Artifact[];
   formats: DocumentFormat[];
   canWrite: boolean;
   canPublish: boolean;
+  analytics?: DocumentAnalytics;
   /** Finished investigations, which are the only ones worth writing up. */
   sources: {
     id: string;
@@ -225,6 +238,17 @@ export type DocumentsResponse = {
 
 export const getDocuments = (slug: string) =>
   apiGet<DocumentsResponse>(`/api/workspaces/${slug}/documents`);
+
+/** The campaign report as it would be written right now, before filing it. */
+export type CampaignReportPreview = {
+  title: string;
+  markdown: string;
+  html: string;
+  formats: DocumentFormat[];
+  measured: boolean;
+  campaignCount: number;
+  findingCount: number;
+};
 
 export const getDocument = (slug: string, id: string) =>
   apiGet<{ document: Artifact; formats: DocumentFormat[]; html: string }>(
