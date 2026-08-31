@@ -4,7 +4,16 @@ import * as repo from '../graph/repository.js';
 import type { Artifact, Finding, MetricValue, Recommendation } from '../domain/types.js';
 import { invalid, notFound, requireCsrf, requireWorkspace, sendError } from './context.js';
 import { deriveAnalytics, resolveBasis } from './analytics.routes.js';
-import { campaignReportMarkdown, campaignReportTitle, type CampaignReportInput } from './documents.report.js';
+import { campaignReport, campaignReportTitle, type CampaignReportInput } from './documents.report.js';
+import { decisionMemo } from './documents.memo.js';
+import {
+  toHtmlBody,
+  toHtmlDocument,
+  toMarkdown,
+  toWordDocument as blocksToWord,
+  type ReportDoc,
+} from './documents.blocks.js';
+import { toPdf as blocksToPdf } from './documents.pdf.js';
 import { DEFAULT_SCOPE_ID, WINDOW_LABEL } from '../sample/constants.js';
 import { scoreline as sampleScoreline } from '../sample/scoreline.js';
 import {
@@ -60,51 +69,68 @@ async function memoInputFor(workspaceId: string, workspaceName: string, runId: s
  * names the run it came from, it is written from that run on demand — the same
  * builder, the same prose — so every memo on the shelf is a whole document.
  */
-async function bodyOf(workspaceId: string, workspaceName: string, document: Artifact): Promise<string> {
-  if (document.content?.trim()) return document.content;
+async function docOf(
+  workspaceId: string,
+  workspaceName: string,
+  document: Artifact,
+): Promise<ReportDoc> {
+  // A report written since documents gained charts carries its own structure,
+  // frozen. Rendering from that is what makes a download a month later show
+  // the same bars it showed the day it was written.
+  if (document.document) {
+    try {
+      return JSON.parse(document.document) as ReportDoc;
+    } catch {
+      // Unreadable structure falls through to rebuilding or to the summary.
+    }
+  }
 
   if (document.linkedRunId) {
     try {
-      return memoMarkdown(await memoInputFor(workspaceId, workspaceName, document.linkedRunId));
+      return decisionMemo(await memoInputFor(workspaceId, workspaceName, document.linkedRunId));
     } catch {
       // The run has been deleted since. The summary is all that is left, and
       // saying so beats handing over a document that pretends to be complete.
     }
   }
 
-  return [
-    `# ${document.title}`,
-    '',
-    document.summary,
-    '',
-    '---',
-    '',
-    '_This artifact predates stored document bodies and the investigation behind it is no longer available, so only its summary survives._',
-  ].join('\n');
+  // Documents written before either existed keep whatever prose they have.
+  return {
+    title: document.title,
+    meta: [],
+    blocks: document.content?.trim()
+      ? [{ kind: 'para', text: document.content }]
+      : [
+          { kind: 'para', text: document.summary },
+          { kind: 'rule' },
+          {
+            kind: 'footnote',
+            text: 'This artifact predates stored document bodies and the investigation behind it is no longer available, so only its summary survives.',
+          },
+        ],
+  };
 }
 
-/** Renders a document into the format asked for. */
+/**
+ * Renders a document into the format asked for.
+ *
+ * Each format gets the charts the way that format can carry them: drawn
+ * vectors in the PDF, inline SVG in HTML and Word, and in Markdown the values
+ * the chart was made of, because a plain-text format should not pretend to
+ * draw.
+ */
 function render(
   document: Artifact,
-  markdown: string,
+  doc: ReportDoc,
   format: Format,
 ): { body: string | Buffer; contentType: string } {
-  if (format === 'pdf') {
-    return { body: toPdf(markdown), contentType: CONTENT_TYPE.pdf };
-  }
-  if (format === 'doc') {
-    return { body: toWordDocument(document.title, markdownToHtml(markdown)), contentType: CONTENT_TYPE.doc };
-  }
-  if (format === 'html') {
-    return {
-      body: `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${document.title}</title></head><body>${markdownToHtml(markdown)}</body></html>`,
-      contentType: CONTENT_TYPE.html,
-    };
-  }
+  if (format === 'pdf') return { body: blocksToPdf(doc), contentType: CONTENT_TYPE.pdf };
+  if (format === 'doc') return { body: blocksToWord(doc), contentType: CONTENT_TYPE.doc };
+  if (format === 'html') return { body: toHtmlDocument(doc), contentType: CONTENT_TYPE.html };
   if (format === 'json') {
-    return { body: JSON.stringify(document, null, 2), contentType: CONTENT_TYPE.json };
+    return { body: JSON.stringify({ ...document, document: doc }, null, 2), contentType: CONTENT_TYPE.json };
   }
-  return { body: markdown, contentType: CONTENT_TYPE.md };
+  return { body: toMarkdown(doc), contentType: CONTENT_TYPE.md };
 }
 
 /**
@@ -141,12 +167,17 @@ async function campaignReportInput(
     await Promise.all(reported.map((finding) => repo.listRecommendations(finding.id)))
   ).flat();
 
+  // The daily cost line the report draws. It comes from the same derivation
+  // the briefing chart uses, so the document and the screen agree.
+  const costSeries = derived?.seriesByMetric?.cpa;
+
   return {
     workspaceName,
     scopeLabel: snapshot.label,
     rangeLabel: WINDOW_LABEL,
     currency,
     basis,
+    costSeries,
     accounts: inScopeAccounts,
     campaigns: inScopeCampaigns,
     creatives: creatives.filter((creative) => campaignIds.has(creative.campaignId)),
@@ -220,7 +251,7 @@ export async function documentRoutes(app: FastifyInstance) {
       const documents = await Promise.all(
         artifacts.map(async (artifact) => ({
           ...artifact,
-          content: await bodyOf(context.workspace.id, context.workspace.name, artifact),
+          content: toMarkdown(await docOf(context.workspace.id, context.workspace.name, artifact)),
         })),
       );
 
@@ -260,7 +291,8 @@ export async function documentRoutes(app: FastifyInstance) {
         if (!runId) throw invalid('Choose the investigation to write up.', 'runId');
 
         const input = await memoInputFor(context.workspace.id, context.workspace.name, runId);
-        const markdown = memoMarkdown(input);
+        const doc = decisionMemo(input);
+        const markdown = toMarkdown(doc);
 
         const document: Artifact = {
           id: `art_doc_${randomUUID().slice(0, 8)}`,
@@ -281,6 +313,7 @@ export async function documentRoutes(app: FastifyInstance) {
           // Frozen at the moment of writing. A memo that silently re-rendered
           // against later data would misreport what was decided and when.
           content: markdown,
+          document: JSON.stringify(doc),
         };
 
         await repo.upsertArtifact(context.workspace.id, document);
@@ -322,7 +355,8 @@ export async function documentRoutes(app: FastifyInstance) {
           context.user.name,
           request.body?.scopeId ?? DEFAULT_SCOPE_ID,
         );
-        const markdown = campaignReportMarkdown(input);
+        const doc = campaignReport(input);
+        const markdown = toMarkdown(doc);
 
         const decisionGrade = input.findings.filter((finding) => finding.severity === 'decision').length;
 
@@ -347,6 +381,7 @@ export async function documentRoutes(app: FastifyInstance) {
           format: 'Markdown',
           // Frozen at the moment of writing, like every other document here.
           content: markdown,
+          document: JSON.stringify(doc),
         };
 
         await repo.upsertArtifact(context.workspace.id, document);
@@ -385,11 +420,12 @@ export async function documentRoutes(app: FastifyInstance) {
           context.user.name,
           request.query.scopeId ?? DEFAULT_SCOPE_ID,
         );
-        const markdown = campaignReportMarkdown(input);
+        const doc = campaignReport(input);
+        const markdown = toMarkdown(doc);
         return {
           title: campaignReportTitle(input),
           markdown,
-          html: markdownToHtml(markdown),
+          html: toHtmlBody(doc),
           formats: FORMATS,
           measured: input.measured,
           campaignCount: input.campaigns.length,
@@ -415,8 +451,8 @@ export async function documentRoutes(app: FastifyInstance) {
           throw invalid('That is not a format this document can be written in.', 'format');
         }
 
-        const markdown = await bodyOf(context.workspace.id, context.workspace.name, document);
-        const { body, contentType } = render(document, markdown, format);
+        const doc = await docOf(context.workspace.id, context.workspace.name, document);
+        const { body, contentType } = render(document, doc, format);
 
         return reply
           .header('content-type', contentType)
@@ -440,8 +476,12 @@ export async function documentRoutes(app: FastifyInstance) {
         const document = await repo.getArtifact(request.params.id);
         if (!document || document.mode !== 'reports') throw notFound('That document no longer exists.');
 
-        const markdown = await bodyOf(context.workspace.id, context.workspace.name, document);
-        return { document: { ...document, content: markdown }, formats: FORMATS, html: markdownToHtml(markdown) };
+        const doc = await docOf(context.workspace.id, context.workspace.name, document);
+        return {
+          document: { ...document, content: toMarkdown(doc) },
+          formats: FORMATS,
+          html: toHtmlBody(doc),
+        };
       } catch (error) {
         return sendError(reply, error);
       }

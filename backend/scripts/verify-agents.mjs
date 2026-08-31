@@ -309,9 +309,33 @@ async function verifyCampaignReport() {
   );
 
   const markdown = preview.body?.markdown ?? '';
-  for (const heading of ['Where the account stands', 'The totals', 'Campaigns, by spend', 'What these numbers are built on']) {
+  for (const heading of [
+    'The short version',
+    'Where the money went',
+    'What got better and what got worse',
+    'What these numbers are built on',
+  ]) {
     check(`the report contains "${heading}"`, markdown.includes(heading));
   }
+
+  // The report opens in plain English rather than a table. This catches a
+  // regression to the metric dump it used to be.
+  const opening = (markdown.split('## The short version')[1] ?? '').trim();
+  check(
+    'the report opens with a readable sentence, not a figure',
+    /^[A-Z][a-z]+ /.test(opening),
+    opening.slice(0, 90).replace(/\s+/g, ' '),
+  );
+
+  // Charts are the point of the rewrite, so their absence has to fail.
+  const html = preview.body?.html ?? '';
+  const charts = (html.match(/<svg/g) ?? []).length;
+  check('the report draws charts', charts >= 3, `${charts} charts in the HTML`);
+  check(
+    'no chart label is cut off at the viewBox edge',
+    !/<text[^>]*x="-/.test(html),
+    'labels sit inside their column',
+  );
 
   const written = await json('/documents/campaign-report', {
     method: 'POST',

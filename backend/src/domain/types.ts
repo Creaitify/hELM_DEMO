@@ -364,6 +364,19 @@ export type Artifact = {
    * would misreport what was decided and when.
    */
   content?: string;
+  /**
+   * The same document as a block structure, frozen alongside the Markdown.
+   *
+   * The Markdown is what a person reads in a plain-text format; this is what
+   * the PDF and the HTML draw their charts from. Keeping both means a report
+   * downloaded a month later shows the same bars it showed the day it was
+   * written, rather than re-rendering against data that has since moved.
+   *
+   * Stored as JSON because the graph holds nodes, not trees. Absent on
+   * documents written before reports had charts, which fall back to reading
+   * the Markdown.
+   */
+  document?: string;
   /** Present for rendered creative. A served asset path under /api/studio/assets. */
   imageUrl?: string;
   aspect?: string;

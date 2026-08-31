@@ -2,6 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import * as repo from '../graph/repository.js';
 import type { Artifact, Finding, IntelligenceRun, Recommendation } from '../domain/types.js';
 import { notFound, requireWorkspace, sendError } from './context.js';
+import { decisionMemo } from './documents.memo.js';
+import { toHtmlDocument, toMarkdown, toWordDocument as blocksToWord } from './documents.blocks.js';
+import { toPdf as blocksToPdf } from './documents.pdf.js';
 
 /**
  * Downloads.
@@ -267,14 +270,22 @@ export async function exportRoutes(app: FastifyInstance) {
         const format = (request.query.format ?? 'md') as Format;
         const filename = `${safeName(run.title)}-${run.id}.${format}`;
 
+        // The same block structure the Documents shelf renders, so a memo
+        // exported from a run and one downloaded from the shelf are the same
+        // document rather than two builders drifting apart.
+        const doc = decisionMemo(input);
         const payload =
           format === 'json'
             ? JSON.stringify({ run, findings, recommendations, decisions, artifacts }, null, 2)
             : format === 'html'
-              ? memoHtml(input)
+              ? toHtmlDocument(doc)
               : format === 'csv'
                 ? findingsCsv(findings, recommendations)
-                : memoMarkdown(input);
+                : format === 'pdf'
+                  ? blocksToPdf(doc)
+                  : format === 'doc'
+                    ? blocksToWord(doc)
+                    : toMarkdown(doc);
 
         return reply
           .header('content-type', CONTENT_TYPE[format] ?? CONTENT_TYPE.md)
