@@ -73,7 +73,10 @@ export const env = {
   isProduction: nodeEnv === 'production',
   logLevel: str('LOG_LEVEL', 'info').toLowerCase(),
 
-  port: num('PORT', portFromUrl(apiUrl, 8000)),
+  // 8100 rather than 8000: a Docker or WSL port relay claims 8000 on a lot of
+  // developer machines, and it takes it the moment this server releases it on
+  // a restart — after which the API cannot get its own port back.
+  port: num('PORT', portFromUrl(apiUrl, 8100)),
   host: str('HOST', '0.0.0.0'),
 
   /** Canonical public origin of the Next frontend. OAuth returns here. */
@@ -166,10 +169,21 @@ export const env = {
      * Thinking is off unless a call passes `{type: 'enabled', budget_tokens}`,
      * which none of them do — adaptive thinking is a 4.6-and-later feature.
      */
-    model: str('ANTHROPIC_MODEL', 'claude-haiku-4-5'),
+    /**
+     * The analyst and the Creative Director write the things a person reads —
+     * findings, proposals, creative direction, the memo. Haiku could hold the
+     * shape but not the judgement: it graded every finding decision-grade and
+     * invented creative asset ids the review gate then had to reject. Sonnet
+     * is the floor for work that leaves the product as a document.
+     */
+    model: str('ANTHROPIC_MODEL', 'claude-sonnet-5'),
     /** The model that holds the review gate, kept separate on purpose. */
-    reviewModel: firstOf(['ANTHROPIC_REVIEW_MODEL', 'ANTHROPIC_MODEL'], 'claude-haiku-4-5'),
-    fastModel: firstOf(['ANTHROPIC_FAST_MODEL', 'ANTHROPIC_MODEL'], 'claude-haiku-4-5'),
+    reviewModel: firstOf(['ANTHROPIC_REVIEW_MODEL', 'ANTHROPIC_MODEL'], 'claude-sonnet-5'),
+    /**
+     * The scout reconciles accounts and writes no prose, so it stays on the
+     * fast model. Paying Sonnet rates to sum spend buys nothing.
+     */
+    fastModel: firstOf(['ANTHROPIC_FAST_MODEL'], 'claude-haiku-4-5'),
     maxTokens: num('ANTHROPIC_MAX_TOKENS', 8000),
   },
 

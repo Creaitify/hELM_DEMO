@@ -364,6 +364,15 @@ type StepResult = {
   output: WorkflowOutput;
   /** What the reviewer reads. Structural scores cannot judge prose alone. */
   reviewable?: unknown;
+  /**
+   * The evidence this step was actually given.
+   *
+   * A reviewer can only judge whether something is grounded against the
+   * ground the author was standing on. Showing it a different slice makes it
+   * confidently wrong in one direction: everything the specialist legitimately
+   * cited looks invented.
+   */
+  groundedIn?: unknown;
 };
 
 type Verdict = { grounding: number; quality: number; passed: boolean; note: string; reviewedBy: string };
@@ -386,13 +395,21 @@ async function reviewAtGate(context: RunContext, agent: AgentKey, result: StepRe
 
   const judgement = await reasonJson({
     system:
-      'You are HELM reviewing one specialist output before the person who asked ever sees it. You are strict, and you are not the author. Score grounding and quality between 0 and 1. Refuse anything that invents a figure, blends accounts the evidence marks as separated, or promises a certain outcome. Answer with the scores and one short sentence — never with your reasoning.',
+      'You are HELM reviewing one specialist output before the person who asked ever sees it. You are strict, and you are not the author. Score grounding and quality between 0 and 1. Refuse anything that states a figure absent from the evidence, blends accounts the evidence marks as separated, or promises a certain outcome. Judge only the claims: written copy is the specialist\'s job, so a headline, a subline or a name it was asked to write is not a fabricated fact and must not be scored as one. Answer with the scores and one short sentence — never with your reasoning.',
     prompt: `Specialist: ${definition.name} — ${definition.role}
 Gate: ${definition.gate}
 Standing instruction: ${definition.setting}
 
 Evidence available to it:
-${JSON.stringify({ totals: context.pack.totals, accounts: context.pack.accounts, exclusions: context.pack.exclusions }, null, 2)}
+${JSON.stringify(
+  result.groundedIn ?? {
+    totals: context.pack.totals,
+    accounts: context.pack.accounts,
+    exclusions: context.pack.exclusions,
+  },
+  null,
+  2,
+)}
 
 Its output:
 ${JSON.stringify(result.reviewable, null, 2)}`,
@@ -1067,6 +1084,9 @@ Grade them honestly. A finding is decision-grade only when it carries real money
           })),
         ],
       },
+      // The analyst reasoned over the whole pack, so the gate judges it
+      // against the whole pack rather than a slice of it.
+      groundedIn: context.pack,
       reviewable: {
         findings: context.findings.map((finding) => ({
           title: finding.title,
@@ -1187,6 +1207,15 @@ Write three replacement directions.`,
         })),
       },
       reviewable: context.directions,
+      // Exactly what the Creative Director was handed. Without this the gate
+      // reviewed creative work against account totals, found none of the
+      // creative names in it, and failed the run three times for inventing
+      // things it had in fact been given.
+      groundedIn: {
+        creativeFatigue: context.pack.creativeFatigue,
+        findings: context.findings.map((finding) => finding.title),
+        brandGuidance,
+      },
     };
   });
 }

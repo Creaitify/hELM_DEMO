@@ -19,7 +19,7 @@ cd backend && npm install && npm run dev
 cd frontend && npm install && npm run dev
 ```
 
-The app is at **http://localhost:3000**, the API at **http://localhost:8000**.
+The app is at **http://localhost:3000**, the API at **http://localhost:8100**.
 
 The browser only ever calls same-origin `/api`. `frontend/next.config.mjs`
 rewrites those paths to the API origin, so the session cookie belongs to the
