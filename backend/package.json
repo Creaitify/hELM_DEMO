@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/seed/run-seed.ts",
-    "verify:agents": "node scripts/verify-agents.mjs"
+    "verify:agents": "node scripts/verify-agents.mjs",
+    "probe:pdf": "tsx scripts/probe-pdf.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.65.0",

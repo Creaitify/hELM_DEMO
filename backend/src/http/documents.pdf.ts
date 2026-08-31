@@ -73,11 +73,23 @@ function pdfText(value: string): string {
 /** Helvetica's average advance is close enough to wrap on without metrics. */
 function wrap(text: string, size: number, width: number): string[] {
   const perLine = Math.max(8, Math.floor(width / (size * 0.5)));
-  const words = text.split(/\s+/).filter(Boolean);
-  if (!words.length) return [''];
   const lines: string[] = [];
   let current = '';
-  for (const word of words) {
+
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    // A single token longer than the column can never fit beside anything, and
+    // leaving it whole draws it straight off the right edge of the page. It is
+    // broken at the column instead — an id, a URL or a pasted key is the usual
+    // cause, and a hard break is the only honest way to show all of it.
+    if (word.length > perLine) {
+      if (current) {
+        lines.push(current);
+        current = '';
+      }
+      for (let at = 0; at < word.length; at += perLine) lines.push(word.slice(at, at + perLine));
+      continue;
+    }
+
     const candidate = current ? `${current} ${word}` : word;
     if (candidate.length > perLine && current) {
       lines.push(current);
@@ -86,8 +98,9 @@ function wrap(text: string, size: number, width: number): string[] {
       current = candidate;
     }
   }
+
   if (current) lines.push(current);
-  return lines;
+  return lines.length ? lines : [''];
 }
 
 /** Bold runs cannot switch font mid-line, so the markers are dropped. */
@@ -325,6 +338,100 @@ function masthead(): Chunk {
   return { height: size + 16, items, breakable: true };
 }
 
+/**
+ * Splits a chunk at a line boundary so the part that fits stays on this page.
+ *
+ * Returns null when there is nothing sensible to split — a chunk whose first
+ * line already overflows, or one that is a single indivisible thing.
+ */
+function splitChunk(chunk: Chunk, room: number): { head: Chunk; tail: Chunk } | null {
+  const head: Chunk['items'] = [];
+  const tail: Chunk['items'] = [];
+  let cut = 0;
+
+  for (const entry of chunk.items) {
+    if (entry.dy <= room) {
+      head.push(entry);
+      cut = Math.max(cut, entry.dy);
+    } else {
+      tail.push(entry);
+    }
+  }
+
+  if (!head.length || !tail.length) return null;
+
+  return {
+    head: { ...chunk, height: cut + 2, items: head },
+    // The tail is rebased so its offsets are relative to the top of the next
+    // page rather than to where the chunk originally started.
+    tail: {
+      ...chunk,
+      height: chunk.height - cut,
+      items: tail.map((entry) => ({ ...entry, dy: entry.dy - cut })),
+    },
+  };
+}
+
+/**
+ * Lays chunks onto pages.
+ *
+ * Prose splits across a page break; a chart does not. That distinction is what
+ * `breakable` is for, and it used to be set on every chunk and read by nothing
+ * — so a paragraph taller than a page was placed at the top of one and drawn
+ * straight off the bottom. The file stayed valid and over half the text was
+ * simply not on any page. A thousand-word paragraph lost 65 of its 129 lines.
+ *
+ * A chunk that cannot split and cannot fit even on an empty page still has to
+ * go somewhere. It goes on its own page, where it is clipped rather than
+ * silently dropped — visibly wrong beats invisibly missing.
+ */
+function paginate(chunks: Chunk[]): { chunk: Chunk; top: number }[][] {
+  const usable = PAGE.height - PAGE.margin * 2;
+  /** Below this, a split leaves an orphan line and is not worth making. */
+  const MIN_SPLIT = 40;
+
+  const pages: { chunk: Chunk; top: number }[][] = [];
+  let page: { chunk: Chunk; top: number }[] = [];
+  let used = 0;
+
+  const flush = () => {
+    if (page.length) {
+      pages.push(page);
+      page = [];
+      used = 0;
+    }
+  };
+
+  for (const original of chunks) {
+    let chunk = original;
+
+    while (used + chunk.height > usable) {
+      const room = usable - used;
+
+      if (chunk.breakable && room >= MIN_SPLIT) {
+        const split = splitChunk(chunk, room);
+        if (split) {
+          page.push({ chunk: split.head, top: used });
+          flush();
+          chunk = split.tail;
+          continue;
+        }
+      }
+
+      // Cannot split here. A fresh page may be enough; if we are already on
+      // one, nothing more can be done and it is placed as-is.
+      if (!page.length) break;
+      flush();
+    }
+
+    page.push({ chunk, top: used });
+    used += chunk.height;
+  }
+
+  flush();
+  return pages.length ? pages : [[]];
+}
+
 /* ------------------------------------------------------------- assembly -- */
 
 function blockChunks(block: Block): Chunk[] {
@@ -472,23 +579,7 @@ export function toPdf(doc: ReportDoc): Buffer {
     ),
   ];
 
-  const usableHeight = PAGE.height - PAGE.margin * 2;
-  const pages: { chunk: Chunk; top: number }[][] = [];
-  let page: { chunk: Chunk; top: number }[] = [];
-  let used = 0;
-
-  for (const chunk of chunks) {
-    // A chart that would straddle a page break moves whole to the next page.
-    if (used + chunk.height > usableHeight && page.length) {
-      pages.push(page);
-      page = [];
-      used = 0;
-    }
-    page.push({ chunk, top: used });
-    used += chunk.height;
-  }
-  if (page.length) pages.push(page);
-  if (!pages.length) pages.push([]);
+  const pages = paginate(chunks);
 
   const objects: string[] = [];
   const pageIds: number[] = [];
