@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Suspense, useEffect, useState, type ReactNode } from 'react';
-import type { AccountGroup, AccountScope, AdAccount, IntelligenceRun, Workspace } from '@/contracts';
+import type { AccountGroup, AccountScope, AdAccount, Workspace } from '@/contracts';
 import { AppRail } from './AppRail';
 import { AgentOrb } from './AgentOrb';
 import { MobileNavigation, ScopeBar } from './ScopeBar';
@@ -51,7 +51,14 @@ export function AppShell({
   decisionCount: number;
   nowIso: string;
   user: { name: string; email: string; title: string };
-  activeRun: IntelligenceRun | null;
+  /**
+   * The run in flight, if there is one.
+   *
+   * A stage rather than a whole record, because the only thing the banner
+   * needs is what it is doing — and taking the record invited the caller to
+   * hand over a fixture that said "analyzing" forever.
+   */
+  activeRun: { id: string; title: string; stage: string } | null;
   query: string;
   children: ReactNode;
 }) {
@@ -147,7 +154,7 @@ export function AppShell({
             <span className="min-w-0 flex-1 truncate text-[13px] text-ink-700">
               <span className="font-medium text-ink-950">{activeRun.title}</span>
               {' — '}
-              {activeRun.stages.find((stage) => stage.state === 'active')?.label ?? 'Running'}
+              {activeRun.stage}
             </span>
             <span className="mono hidden shrink-0 text-[11.5px] text-ink-500 sm:block">View run</span>
           </Link>
@@ -163,16 +170,7 @@ export function AppShell({
       <AgentOrb
         workspaceSlug={workspace.slug}
         decisionCount={decisionCount}
-        activeRun={
-          activeRun
-            ? {
-                id: activeRun.id,
-                title: activeRun.title,
-                stage:
-                  activeRun.stages.find((stage) => stage.state === 'active')?.label ?? activeRun.stage,
-              }
-            : null
-        }
+        activeRun={activeRun}
       />
 
       <GlobalCommand

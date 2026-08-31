@@ -1,13 +1,12 @@
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
-import { getSession, getWorkspace } from '@/services/http/queries';
+import { getFleet, getSession, getWorkspace } from '@/services/http/queries';
 import { routes } from '@/lib/routes';
 import {
   DEFAULT_SCOPE_ID,
   NOW_ISO,
   accounts as sampleAccounts,
-  activeRun,
   connections as sampleConnections,
   currentUser,
   runs,
@@ -47,6 +46,25 @@ export default async function WorkspaceLayout({
   }
 
   const live = apiReachable ? await getWorkspace(workspaceSlug) : null;
+
+  /*
+   * What is actually running, asked of the fleet.
+   *
+   * The banner used to come from a fixture whose stage was "analyzing" and
+   * always would be, so every page in the product carried a permanent claim
+   * that an investigation was in progress. The fleet knows what it is doing;
+   * when it is doing nothing, the banner is absent, which is the honest state
+   * and now the usual one.
+   */
+  const fleet = apiReachable ? await getFleet(workspaceSlug) : null;
+  const running =
+    fleet?.ok && fleet.data.activeRunId
+      ? {
+          id: fleet.data.activeRunId,
+          title: (fleet.data.activeSummary ?? 'Investigation').split(' · ')[0],
+          stage: (fleet.data.activeSummary ?? 'Running').split(' · ').slice(1).join(' · ') || 'Running',
+        }
+      : null;
 
   if (live && !live.ok && live.status === 404) notFound();
   if (live && !live.ok && live.status === 401) {
@@ -96,7 +114,7 @@ export default async function WorkspaceLayout({
       decisionCount={decisionCount}
       nowIso={NOW_ISO}
       user={{ name: user.name, email: user.email, title: user.title }}
-      activeRun={activeRun ?? null}
+      activeRun={running}
       query=""
     >
       {children}

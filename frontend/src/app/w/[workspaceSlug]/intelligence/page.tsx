@@ -10,7 +10,7 @@ import { getIntelligence } from '@/services/http/queries';
 import { NOW_ISO, WINDOW_END, WINDOW_START, blendedCampaigns, runs as sampleRuns } from '@/services/mock';
 import { INTENTS } from '@/services/mock/intelligence';
 
-export const metadata: Metadata = { title: 'Intelligence' };
+export const metadata: Metadata = { title: 'Agent Fleet' };
 
 export default async function IntelligencePage({
   params,
@@ -21,7 +21,7 @@ export default async function IntelligencePage({
 }) {
   const { workspaceSlug } = await params;
   if (!isPopulated(workspaceSlug)) {
-    return <WorkspacePlaceholder slug={workspaceSlug} title="Intelligence" section="intelligence" />;
+    return <WorkspacePlaceholder slug={workspaceSlug} title="Agent Fleet" section="intelligence" />;
   }
 
   const { intent } = await searchParams;
@@ -35,7 +35,9 @@ export default async function IntelligencePage({
 
   return (
     <PageShell
-      title="Intelligence"
+      // The navigation calls this the Agent Fleet, so the page does too. A page
+      // whose title disagrees with the link that reached it reads as a wrong turn.
+      title="Agent Fleet"
       context={
         <p className="mono text-[12px] text-ink-400">
           {runs.length} runs · India · Google + Meta · {formatDateRange(WINDOW_START, WINDOW_END)}
@@ -47,6 +49,24 @@ export default async function IntelligencePage({
           {offline.body}
         </InlineNotice>
       ) : null}
+
+      {/*
+        The fleet first. It is what the page is about, and what it is doing
+        right now is the thing somebody arriving here wants to know before they
+        decide whether to ask it for anything else.
+      */}
+      <FleetRoster
+        agents={fleet.agents}
+        powering={fleet.powering}
+        mode={fleet.mode}
+        invocations={fleet.invocations}
+        activeRunId={fleet.activeRunId}
+        activeSummary={fleet.activeSummary}
+        workspaceSlug={workspaceSlug}
+        nowIso={NOW_ISO}
+      />
+
+      <div className="mt-10" />
 
       <IntelligenceWorkspace
         runs={runs}
@@ -62,10 +82,6 @@ export default async function IntelligencePage({
         live={live.ok}
       />
 
-      {/* The cast that will run it, before it is called */}
-      <div className="mt-10">
-        <FleetRoster agents={fleet.agents} powering={fleet.powering} mode={fleet.mode} />
-      </div>
     </PageShell>
   );
 }

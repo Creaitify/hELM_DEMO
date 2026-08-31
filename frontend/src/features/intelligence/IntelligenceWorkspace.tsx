@@ -187,7 +187,12 @@ export function IntelligenceWorkspace({
                 ))}
               </dl>
 
-              <Disclosure summary={`Selected campaigns (${selected.length})`} className="mt-2" defaultOpen>
+              {/*
+                Closed by default. Nineteen campaigns expanded is most of the
+                page, and the run already inherits a sensible scope — narrowing
+                it is a deliberate act, not the first thing to read.
+              */}
+              <Disclosure summary={`Selected campaigns (${selected.length})`} className="mt-2">
                 <ul className="space-y-2">
                   {decisionCampaigns.map((campaign) => (
                     <li key={campaign.id}>

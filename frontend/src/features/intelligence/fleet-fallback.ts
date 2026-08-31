@@ -1,5 +1,5 @@
 import type { HelmError } from '@/contracts';
-import type { AgentDefinition } from '@/contracts/fleet';
+import type { AgentDefinition, FleetAgentHealth } from '@/contracts/fleet';
 
 /**
  * The fleet's shape when the API cannot be reached.
@@ -68,9 +68,30 @@ export const FALLBACK_AGENTS: AgentDefinition[] = [
   },
 ];
 
+/**
+ * The same cast, with its health left empty rather than guessed.
+ *
+ * With no API there is nothing to report: no calls, no pass rate, no last-run
+ * time. Zero calls and a null pass rate say exactly that, and the surface
+ * renders them as "Never called" and a dash rather than inventing a fleet that
+ * looks like it has been working.
+ */
 export const FALLBACK_FLEET = {
-  agents: FALLBACK_AGENTS,
+  agents: FALLBACK_AGENTS.map(
+    (agent): FleetAgentHealth => ({
+      ...agent,
+      live: false,
+      runs: 0,
+      avgLatencyMs: null,
+      lastRunAt: null,
+      passRate: null,
+    }),
+  ),
   powering: [] as { label: string; value: string; note: string }[],
+  activeRunId: null,
+  activeSummary: null,
+  activeProgress: null,
+  invocations: [],
   mode: { reasoning: 'scripted' as const, images: 'studio-render' },
 };
 

@@ -86,11 +86,10 @@ export async function intelligenceRoutes(app: FastifyInstance) {
         intents: INTENTS,
         canRun: context.can('intelligence.run'),
         canApprove: context.can('recommendations.approve'),
-        fleet: {
-          agents: AGENT_ORDER.map((key) => AGENTS[key]),
-          powering: poweringTheFleet(),
-          mode: fleetMode(),
-        },
+        // The whole snapshot, not the cast list. The page is called Agent
+        // Fleet and could not say whether any of them had ever run, because
+        // the health was computed here and then left behind.
+        fleet: { ...(await fleetSnapshot(context.workspace.slug)), mode: fleetMode() },
       };
     } catch (error) {
       return sendError(reply, error);

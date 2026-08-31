@@ -349,10 +349,57 @@ async function verifyCampaignReport() {
   return written.body?.document;
 }
 
-/* ------------------------------------------------------- 6. the frontend -- */
+/* ------------------------------------------------------------ 6. the fleet -- */
+
+async function verifyFleet() {
+  section('6. The Agent Fleet reports what it has actually done');
+
+  const { status, body } = await json('/intelligence');
+  check('the fleet page has data', status === 200, `status ${status}`);
+
+  const fleet = body?.fleet;
+  const agents = fleet?.agents ?? [];
+  check('four specialists are described', agents.length === 4, `${agents.length}`);
+
+  // This is the regression worth catching. The health was computed on the
+  // server and dropped at the response, so the page called Agent Fleet could
+  // not say whether any of them had ever run.
+  const withHealth = agents.filter((agent) => typeof agent.runs === 'number');
+  check(
+    'every specialist reports how often it has been called',
+    withHealth.length === agents.length,
+    withHealth.length ? `e.g. ${withHealth[0].name}: ${withHealth[0].runs} calls` : 'no health on any agent',
+  );
+
+  const called = agents.filter((agent) => agent.runs > 0);
+  check(
+    'the fleet has a call history to show',
+    called.length > 0,
+    called.map((agent) => `${agent.name} ${agent.runs}`).join(', '),
+  );
+
+  check(
+    'pass rates are reported for the specialists that have run',
+    called.every((agent) => typeof agent.passRate === 'number'),
+    called.map((agent) => `${agent.name} ${Math.round((agent.passRate ?? 0) * 100)}%`).join(', '),
+  );
+
+  check(
+    'the work log is returned',
+    Array.isArray(fleet?.invocations) && fleet.invocations.length > 0,
+    `${fleet?.invocations?.length ?? 0} invocations`,
+  );
+
+  // A revision in the log is the evidence the review gate is real rather than
+  // decorative: it means work was sent back at least once.
+  const revised = (fleet?.invocations ?? []).filter((entry) => entry.revision > 1).length;
+  console.log(`        ${revised} of the last ${fleet?.invocations?.length ?? 0} calls needed a revision`);
+}
+
+/* ------------------------------------------------------- 7. the frontend -- */
 
 async function verifyFrontend() {
-  section('6. The frontend renders what the backend produced');
+  section('7. The frontend renders what the backend produced');
 
   for (const [label, path] of [
     ['briefing', ''],
@@ -382,6 +429,7 @@ try {
   await verifyApprovalDrivesTheFleet();
   await verifyDocuments();
   await verifyCampaignReport();
+  await verifyFleet();
   await verifyFrontend();
 } catch (error) {
   bad('the verification run itself', error.stack ?? error.message);

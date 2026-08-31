@@ -26,7 +26,7 @@ import type {
   TimelineEvent,
   Workspace,
 } from '@/contracts';
-import type { AgentDefinition, AgentInvocation, FleetSnapshot } from '@/contracts/fleet';
+import type { AgentInvocation, FleetSnapshot } from '@/contracts/fleet';
 
 /**
  * Typed reads for every product surface.
@@ -126,9 +126,11 @@ export type IntelligenceResponse = {
   intents: readonly { id: string; label: string; detail: string }[];
   canRun: boolean;
   canApprove: boolean;
-  fleet: {
-    agents: AgentDefinition[];
-    powering: { label: string; value: string; note: string }[];
+  /**
+   * The whole fleet snapshot. It used to be declared as the cast list alone,
+   * which silently dropped every health field the API was already sending.
+   */
+  fleet: FleetSnapshot & {
     mode: { reasoning: 'anthropic' | 'scripted'; images: string };
   };
 };
