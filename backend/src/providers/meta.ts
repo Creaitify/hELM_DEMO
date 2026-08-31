@@ -1,5 +1,6 @@
 import { env } from '../env.js';
 import type { AdAccount } from '../domain/types.js';
+import { fetchWithTimeout } from './http.js';
 
 /**
  * Meta Ads.
@@ -42,7 +43,7 @@ export async function exchangeMetaCode(code: string): Promise<MetaToken> {
     redirect_uri: `${env.apiUrl}${env.meta.redirectPath}`,
     code,
   });
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
   if (!response.ok) throw new Error(`Meta token exchange failed: ${response.status} ${await response.text()}`);
   return (await response.json()) as MetaToken;
 }
@@ -55,7 +56,7 @@ export async function exchangeForLongLivedToken(shortLived: string): Promise<Met
     client_secret: env.meta.appSecret,
     fb_exchange_token: shortLived,
   });
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
   if (!response.ok) throw new Error(`Meta long-lived exchange failed: ${response.status}`);
   return (await response.json()) as MetaToken;
 }
@@ -63,7 +64,7 @@ export async function exchangeForLongLivedToken(shortLived: string): Promise<Met
 export type MetaIdentity = { id: string; name: string };
 
 export async function fetchMetaIdentity(accessToken: string): Promise<MetaIdentity> {
-  const response = await fetch(graph('me', { fields: 'id,name', access_token: accessToken }));
+  const response = await fetchWithTimeout(graph('me', { fields: 'id,name', access_token: accessToken }));
   if (!response.ok) throw new Error(`Meta identity lookup failed: ${response.status}`);
   return (await response.json()) as MetaIdentity;
 }
@@ -71,7 +72,7 @@ export async function fetchMetaIdentity(accessToken: string): Promise<MetaIdenti
 export type MetaBusiness = { id: string; name: string };
 
 export async function listBusinesses(accessToken: string): Promise<MetaBusiness[]> {
-  const response = await fetch(graph('me/businesses', { fields: 'id,name', limit: '50', access_token: accessToken }));
+  const response = await fetchWithTimeout(graph('me/businesses', { fields: 'id,name', limit: '50', access_token: accessToken }));
   if (!response.ok) return [];
   const body = (await response.json()) as { data?: MetaBusiness[] };
   return body.data ?? [];
@@ -91,7 +92,7 @@ const META_ACCOUNT_FIELDS = 'id,account_id,name,currency,timezone_name,account_s
 
 export async function listMetaAdAccounts(accessToken: string, businessId?: string): Promise<MetaAdAccount[]> {
   const path = businessId ? `${businessId}/owned_ad_accounts` : 'me/adaccounts';
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     graph(path, { fields: META_ACCOUNT_FIELDS, limit: '100', access_token: accessToken }),
   );
   if (!response.ok) throw new Error(`Meta ad account list failed: ${response.status} ${await response.text()}`);

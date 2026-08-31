@@ -176,6 +176,7 @@ export const env = {
      * invented creative asset ids the review gate then had to reject. Sonnet
      * is the floor for work that leaves the product as a document.
      */
+    timeoutMs: num('ANTHROPIC_TIMEOUT_MS', 120_000),
     model: str('ANTHROPIC_MODEL', 'claude-sonnet-5'),
     /** The model that holds the review gate, kept separate on purpose. */
     reviewModel: firstOf(['ANTHROPIC_REVIEW_MODEL', 'ANTHROPIC_MODEL'], 'claude-sonnet-5'),
@@ -229,6 +230,17 @@ export const env = {
     maxConcurrentRuns: num('FLEET_MAX_CONCURRENT_RUNS', 4),
     /** How many times the review gate may send a specialist back. */
     maxRevisions: num('MAX_AGENT_REVISIONS', 3),
+  },
+
+  http: {
+    /**
+     * The ceiling on any single outbound provider call.
+     *
+     * Node's fetch has no default, so without this a hung connection is a
+     * hung request — or a fleet run parked mid-step with nothing to time it
+     * out.
+     */
+    timeoutMs: num('OUTBOUND_TIMEOUT_MS', 30_000),
   },
 } as const;
 

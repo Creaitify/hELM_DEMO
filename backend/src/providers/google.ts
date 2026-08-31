@@ -1,5 +1,6 @@
 import { env } from '../env.js';
 import type { AdAccount, SessionUser } from '../domain/types.js';
+import { fetchWithTimeout } from './http.js';
 
 /**
  * Google identity and Google Ads.
@@ -85,7 +86,7 @@ export async function exchangeCode(
   const clientId = which === 'ads' ? env.google.adsClientId : env.google.clientId;
   const clientSecret = which === 'ads' ? env.google.adsClientSecret : env.google.clientSecret;
 
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -101,7 +102,7 @@ export async function exchangeCode(
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -116,7 +117,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 }
 
 export async function fetchGoogleProfile(accessToken: string): Promise<SessionUser> {
-  const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+  const response = await fetchWithTimeout('https://openidconnect.googleapis.com/v1/userinfo', {
     headers: { authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) throw new Error(`Google profile lookup failed: ${response.status}`);
@@ -163,7 +164,7 @@ export async function listAccessibleCustomers(accessToken: string): Promise<List
   };
   if (env.google.adsLoginCustomerId) headers['login-customer-id'] = env.google.adsLoginCustomerId;
 
-  const listed = await fetch(`https://googleads.googleapis.com/${version}/customers:listAccessibleCustomers`, {
+  const listed = await fetchWithTimeout(`https://googleads.googleapis.com/${version}/customers:listAccessibleCustomers`, {
     headers,
   });
   if (!listed.ok) throw new Error(`Google Ads customer list failed: ${listed.status} ${await listed.text()}`);
@@ -173,7 +174,7 @@ export async function listAccessibleCustomers(accessToken: string): Promise<List
 
   for (const resourceName of resourceNames.slice(0, 25)) {
     const customerId = resourceName.split('/')[1];
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://googleads.googleapis.com/${version}/customers/${customerId}/googleAds:search`,
       {
         method: 'POST',

@@ -94,7 +94,16 @@ function reasoningBlocked(): boolean {
 
 function anthropic(): Anthropic | null {
   if (!env.anthropic.apiKey) return null;
-  if (!client) client = new Anthropic({ apiKey: env.anthropic.apiKey });
+  // The SDK's default timeout is ten minutes. A fleet step is drawn on screen
+  // with a live elapsed counter, and nobody watching it considers ten minutes
+  // a working state — the run should fail and say so long before that.
+  if (!client) {
+    client = new Anthropic({
+      apiKey: env.anthropic.apiKey,
+      timeout: env.anthropic.timeoutMs,
+      maxRetries: 2,
+    });
+  }
   return client;
 }
 

@@ -196,8 +196,25 @@ async function setStage(context: RunContext, stage: RunStage, summary?: string) 
 
 /* ------------------------------------------------------------------ run -- */
 
+/**
+ * Runs that are actually consuming the fleet right now.
+ *
+ * `active` holds every context this process is tracking, which includes runs
+ * parked at human approval — and a run waiting on a person is not using a
+ * worker, a model, or anything else the cap exists to protect.
+ *
+ * Counting the parked ones meant that four investigations started and not yet
+ * decided would refuse every new investigation, with "Too many are already
+ * running", until somebody restarted the server. Nothing was running. The
+ * default cap is four, so it took four ordinary unfinished runs to wedge the
+ * product's main feature.
+ */
+function workingRunCount(): number {
+  return [...active.values()].filter((context) => context.run.stage !== 'waiting_for_approval').length;
+}
+
 export async function startRun(input: StartRunInput): Promise<IntelligenceRun> {
-  if (active.size >= env.fleet.maxConcurrentRuns) {
+  if (workingRunCount() >= env.fleet.maxConcurrentRuns) {
     throw Object.assign(new Error('Too many investigations are already running'), { code: 'rate_limited' });
   }
 
@@ -310,7 +327,10 @@ export function cancelRun(runId: string): boolean {
   context.run.stage = 'cancelled';
   context.run.summary = 'Cancelled before completion. Nothing was written to your ad accounts.';
   context.run.stages = stageRecords(context);
-  void repo.upsertRun(context.workspaceId, context.run);
+  // Every other fire-and-forget in this file catches. This one did not, and
+  // an unhandled rejection ends the Node process — so a database blip at the
+  // moment somebody cancelled a run took the API down with it.
+  void repo.upsertRun(context.workspaceId, context.run).catch(() => undefined);
   fleetBus.emit({ type: 'run.failed', runId, reason: 'Cancelled by the requester', at: nowIso() });
   active.delete(runId);
   return true;

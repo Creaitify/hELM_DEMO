@@ -99,6 +99,29 @@ async function shutdown(signal: string) {
   process.exit(0);
 }
 
+/*
+ * The last line of defence.
+ *
+ * Node ends the process on an unhandled rejection. Without this, one missing
+ * `.catch` on a background write is indistinguishable from `kill -9` — the API
+ * disappears, every in-flight request with it, and the only evidence is the
+ * process exiting. That is far too large a consequence for the mistake.
+ *
+ * A rejection is logged and survived: the request that caused it has already
+ * failed, and killing every other connection does not help anybody. An
+ * uncaught exception is different — it unwound the stack, so state may be
+ * inconsistent — and the process exits after the log has had a chance to
+ * flush, which is what a supervisor expects.
+ */
+process.on('unhandledRejection', (reason) => {
+  app.log.error({ err: reason }, 'unhandled promise rejection — surviving');
+});
+
+process.on('uncaughtException', (error) => {
+  app.log.fatal({ err: error }, 'uncaught exception — exiting');
+  setTimeout(() => process.exit(1), 100).unref();
+});
+
 process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
