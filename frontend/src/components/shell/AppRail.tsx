@@ -192,20 +192,36 @@ export function AppRail({
       )}
       aria-label="Workspace navigation"
     >
-      {/* Workspace identity — quieter than the account scope control */}
+      {/*
+        The product, then the tenant.
+
+        These were one row — the mark, and beside it the workspace name — which
+        made the workspace the title of the page and left HELM as an unlabelled
+        glyph. Someone looking at a screenshot could reasonably conclude the
+        product was called Northstar Group. The frame names itself first now,
+        and the workspace sits inside it, which is also the order the two things
+        actually nest in.
+      */}
       <div
         className={cn(
-          'flex h-[62px] items-center gap-2.5 border-b border-rail-line px-3',
+          'flex h-[52px] items-center gap-2.5 border-b border-rail-line px-3',
           collapsed && 'justify-center',
         )}
       >
         <Link
           href={routes.briefing(workspace.slug)}
           aria-label="HELM — Briefing"
-          className="rail-focus shrink-0 rounded-control"
+          className="rail-focus flex shrink-0 items-center gap-2.5 rounded-control"
         >
-          <HelmMark size={26} tone="rail" />
+          <HelmMark size={24} tone="rail" />
+          {!collapsed ? (
+            <span className="text-[15px] font-semibold tracking-[0.14em] text-rail-ink-strong">HELM</span>
+          ) : null}
         </Link>
+      </div>
+
+      {/* The workspace, inside it. */}
+      <div className={cn('border-b border-rail-line px-2.5 py-2', collapsed && 'px-1.5')}>
         {!collapsed ? (
           <Popover
             align="start"
@@ -219,14 +235,14 @@ export function AppRail({
                 onClick={toggle}
                 aria-expanded={open}
                 aria-haspopup="dialog"
-                className="rail-focus flex w-full items-center gap-1 rounded-control px-1.5 py-1 text-left transition-colors hover:bg-rail-raised"
+                className="rail-focus flex w-full items-center gap-1 rounded-control bg-rail-raised/60 px-2.5 py-1.5 text-left transition-colors hover:bg-rail-raised"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13.5px] font-medium text-rail-ink-strong">
-                    {workspace.name}
+                  <span className="mono block text-[9.5px] uppercase tracking-[0.12em] text-rail-muted">
+                    Workspace
                   </span>
-                  <span className="block truncate text-[11px] text-rail-muted">
-                    {workspace.isSample ? 'Sample workspace' : workspace.role === 'owner' ? 'Owner' : workspace.role}
+                  <span className="mt-0.5 block truncate text-[13px] font-medium text-rail-ink-strong">
+                    {workspace.name}
                   </span>
                 </span>
                 <span className="shrink-0 text-rail-muted">
@@ -269,7 +285,14 @@ export function AppRail({
               </div>
             )}
           </Popover>
-        ) : null}
+        ) : (
+          <span
+            title={workspace.name}
+            className="mx-auto flex h-7 w-7 items-center justify-center rounded-control bg-rail-raised text-[11px] font-semibold text-rail-ink"
+          >
+            {workspace.name.slice(0, 1).toUpperCase()}
+          </span>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2.5 py-3" aria-label="Primary">

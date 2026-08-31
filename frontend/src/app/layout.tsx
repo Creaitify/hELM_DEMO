@@ -45,7 +45,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#070A12',
+  // The rail's ground. The browser chrome should meet the product's own dark
+  // surface rather than the marketing night navy, which nothing in the app
+  // uses any more.
+  themeColor: '#111827',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',

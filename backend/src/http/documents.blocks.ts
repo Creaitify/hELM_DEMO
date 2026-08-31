@@ -151,6 +151,31 @@ export function toMarkdown(doc: ReportDoc): string {
   return out.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
+/* ---------------------------------------------------------------- brand -- */
+
+/**
+ * The HELM instrument mark: a navigation ring, cardinal ticks, and one
+ * decisive bearing.
+ *
+ * It is the same geometry the product draws in the rail, at the same
+ * proportions, so a document and the screen it came from are recognisably the
+ * same thing. It is 20px and grey with a single amber stroke, which is as much
+ * identity as a document somebody else has to read should ask for — the point
+ * of the page is the analysis, and a masthead that competes with it is worse
+ * than no masthead.
+ */
+export function helmMarkSvg(size = 20): string {
+  return (
+    `<svg width="${size}" height="${size}" viewBox="0 0 32 32" fill="none" aria-hidden="true">` +
+    `<circle cx="16" cy="16" r="13.2" stroke="#d1d5db" stroke-width="1.5"/>` +
+    `<circle cx="16" cy="16" r="7.6" stroke="#9ca3af" stroke-width="1.1" opacity="0.62"/>` +
+    `<path d="M16 1.6v3.4M16 27v3.4M1.6 16h3.4M27 16h3.4" stroke="#9ca3af" stroke-width="1.4" stroke-linecap="round"/>` +
+    `<path d="M16 16 24.6 9.2" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>` +
+    `<circle cx="16" cy="16" r="2.1" fill="#f59e0b"/>` +
+    `</svg>`
+  );
+}
+
 /* ----------------------------------------------------------------- html -- */
 
 export function escapeHtml(value: string): string {
@@ -297,6 +322,13 @@ const CALLOUT_BORDER: Record<Tone, string> = {
 export function toHtmlBody(doc: ReportDoc): string {
   const out: string[] = [];
 
+  // The masthead sits above the title, not over it. A reader should know who
+  // wrote this without the branding being the first thing they read.
+  out.push(
+    `<div class="masthead">${helmMarkSvg(20)}<span class="wordmark">HELM</span>` +
+      `<span class="masthead-rule"></span>` +
+      `<span class="masthead-note">Paid-media intelligence</span></div>`,
+  );
   out.push(`<h1>${inline(doc.title)}</h1>`);
   if (doc.subtitle) out.push(`<p class="subtitle">${inline(doc.subtitle)}</p>`);
   if (doc.meta.length) {
@@ -375,6 +407,12 @@ export function toHtmlBody(doc: ReportDoc): string {
     }
   }
 
+  out.push(
+    `<div class="colophon">${helmMarkSvg(16)}` +
+      `<span>Produced by HELM — paid-media intelligence for Google Ads and Meta Ads. ` +
+      `Every figure traces to a source account and a complete reporting day.</span></div>`,
+  );
+
   return out.join('\n');
 }
 
@@ -413,6 +451,14 @@ export const REPORT_CSS = `
   hr { border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0 18px; }
   .footnote { color: #6b7280; font-size: 9.5pt; }
   code { font-family: Consolas, monospace; font-size: 10pt; }
+  .masthead { display: flex; align-items: center; gap: 8px; margin: 0 0 22px; }
+  .masthead svg { display: block; }
+  .wordmark { font-size: 11pt; font-weight: 600; letter-spacing: 0.16em; color: #111827; }
+  .masthead-rule { flex: 0 0 18px; height: 1px; background: #d1d5db; }
+  .masthead-note { font-size: 9pt; letter-spacing: 0.04em; color: #9ca3af; }
+  .colophon { display: flex; align-items: center; gap: 8px; margin: 34px 0 0;
+              border-top: 1px solid #e5e7eb; padding-top: 14px; color: #9ca3af; font-size: 9pt; }
+  .colophon svg { display: block; flex: 0 0 auto; }
 `;
 
 export function toHtmlDocument(doc: ReportDoc): string {

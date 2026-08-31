@@ -337,6 +337,10 @@ async function verifyCampaignReport() {
     'labels sit inside their column',
   );
 
+  // A document handed to somebody outside the company should say who wrote it.
+  check('the report carries the HELM masthead', /class="masthead"/.test(html) && html.includes('HELM'));
+  check('the report closes with a colophon', /class="colophon"/.test(html));
+
   const written = await json('/documents/campaign-report', {
     method: 'POST',
     body: JSON.stringify({}),

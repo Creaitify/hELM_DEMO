@@ -27,12 +27,23 @@ const GREY: [number, number, number] = [0.95, 0.96, 0.97];
 const RULE: [number, number, number] = [0.82, 0.84, 0.86];
 const MUTED: [number, number, number] = [0.42, 0.45, 0.5];
 const INK: [number, number, number] = [0.07, 0.09, 0.15];
+const AMBER: [number, number, number] = [0.96, 0.62, 0.04];
 
 /** One drawable thing, already positioned relative to its own top. */
 type Item =
   | { kind: 'text'; text: string; size: number; bold: boolean; x: number; color: [number, number, number]; align?: 'right' }
   | { kind: 'rect'; x: number; y: number; w: number; h: number; color: [number, number, number] }
-  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: [number, number, number] };
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: [number, number, number] }
+  /** PDF has no circle operator, so one is drawn as four Bézier arcs. */
+  | {
+      kind: 'circle';
+      cx: number;
+      cy: number;
+      r: number;
+      color: [number, number, number];
+      fill?: boolean;
+      width?: number;
+    };
 
 /** A block of items that must not be split across a page break. */
 type Chunk = { height: number; items: { item: Item; dy: number }[]; breakable: boolean };
@@ -250,6 +261,70 @@ function lineChunk(block: Extract<Block, { kind: 'line' }>): Chunk[] {
   return chunks;
 }
 
+/**
+ * The HELM instrument mark, drawn.
+ *
+ * The same geometry the product draws in the rail and the HTML report puts in
+ * its masthead — a navigation ring, cardinal ticks, one decisive bearing in
+ * amber. Drawn rather than embedded because a raster logo at print resolution
+ * is a hundred kilobytes and this is nine curves.
+ *
+ * It is small and grey on purpose. A document somebody hands to a board should
+ * say who wrote it; it should not be an advertisement.
+ */
+function masthead(): Chunk {
+  const size = 17;
+  const c = size / 2;
+  const scale = size / 32;
+  const items: { item: Item; dy: number }[] = [];
+
+  items.push({ item: { kind: 'circle', cx: c, cy: c, r: 13.2 * scale, color: RULE, width: 0.9 }, dy: 0 });
+  items.push({ item: { kind: 'circle', cx: c, cy: c, r: 7.6 * scale, color: MUTED, width: 0.6 }, dy: 0 });
+  // The cardinal ticks.
+  for (const [x1, y1, x2, y2] of [
+    [16, 2.4, 16, 5.4],
+    [16, 26.6, 16, 29.6],
+    [2.4, 16, 5.4, 16],
+    [26.6, 16, 29.6, 16],
+  ]) {
+    items.push({
+      item: {
+        kind: 'line',
+        x1: x1 * scale,
+        y1: y1 * scale,
+        x2: x2 * scale,
+        y2: y2 * scale,
+        color: MUTED,
+      },
+      dy: 0,
+    });
+  }
+  // The bearing, and the hub it turns on. The one piece of colour.
+  items.push({
+    item: { kind: 'line', x1: 16 * scale, y1: 16 * scale, x2: 24.6 * scale, y2: 9.2 * scale, color: AMBER },
+    dy: 0,
+  });
+  items.push({ item: { kind: 'circle', cx: c, cy: c, r: 2.1 * scale, color: AMBER, fill: true }, dy: 0 });
+
+  items.push({
+    item: { kind: 'text', text: 'HELM', size: 10, bold: true, x: size + 8, color: INK },
+    dy: size / 2 + 3.5,
+  });
+  items.push({
+    item: {
+      kind: 'text',
+      text: 'Paid-media intelligence',
+      size: 7.5,
+      bold: false,
+      x: size + 46,
+      color: MUTED,
+    },
+    dy: size / 2 + 3,
+  });
+
+  return { height: size + 16, items, breakable: true };
+}
+
 /* ------------------------------------------------------------- assembly -- */
 
 function blockChunks(block: Block): Chunk[] {
@@ -333,7 +408,7 @@ function contentStream(chunks: { chunk: Chunk; top: number }[]): string {
           `${(PAGE.margin + item.x).toFixed(2)} ${(baseY - item.y - item.h).toFixed(2)} ` +
             `${item.w.toFixed(2)} ${item.h.toFixed(2)} re f`,
         );
-      } else {
+      } else if (item.kind === 'line') {
         endText();
         parts.push(`${item.color.map((c) => c.toFixed(3)).join(' ')} RG`);
         parts.push('0.8 w');
@@ -341,6 +416,30 @@ function contentStream(chunks: { chunk: Chunk; top: number }[]): string {
           `${(PAGE.margin + item.x1).toFixed(2)} ${(baseY - item.y1).toFixed(2)} m ` +
             `${(PAGE.margin + item.x2).toFixed(2)} ${(baseY - item.y2).toFixed(2)} l S`,
         );
+      } else {
+        endText();
+        // Four Béziers approximate a circle to within a thousandth of its
+        // radius. 0.5523 is the constant that makes that true.
+        const k = item.r * 0.5523;
+        const cx = PAGE.margin + item.cx;
+        const cy = baseY - item.cy;
+        const colour = item.color.map((c) => c.toFixed(3)).join(' ');
+        parts.push(item.fill ? `${colour} rg` : `${colour} RG`);
+        if (!item.fill) parts.push(`${(item.width ?? 0.8).toFixed(2)} w`);
+        parts.push(`${(cx + item.r).toFixed(2)} ${cy.toFixed(2)} m`);
+        parts.push(
+          `${(cx + item.r).toFixed(2)} ${(cy + k).toFixed(2)} ${(cx + k).toFixed(2)} ${(cy + item.r).toFixed(2)} ${cx.toFixed(2)} ${(cy + item.r).toFixed(2)} c`,
+        );
+        parts.push(
+          `${(cx - k).toFixed(2)} ${(cy + item.r).toFixed(2)} ${(cx - item.r).toFixed(2)} ${(cy + k).toFixed(2)} ${(cx - item.r).toFixed(2)} ${cy.toFixed(2)} c`,
+        );
+        parts.push(
+          `${(cx - item.r).toFixed(2)} ${(cy - k).toFixed(2)} ${(cx - k).toFixed(2)} ${(cy - item.r).toFixed(2)} ${cx.toFixed(2)} ${(cy - item.r).toFixed(2)} c`,
+        );
+        parts.push(
+          `${(cx + k).toFixed(2)} ${(cy - item.r).toFixed(2)} ${(cx + item.r).toFixed(2)} ${(cy - k).toFixed(2)} ${(cx + item.r).toFixed(2)} ${cy.toFixed(2)} c`,
+        );
+        parts.push(item.fill ? 'f' : 'S');
       }
     }
   }
@@ -352,11 +451,25 @@ function contentStream(chunks: { chunk: Chunk; top: number }[]): string {
 /** A complete, valid PDF with a correct cross-reference table. */
 export function toPdf(doc: ReportDoc): Buffer {
   const chunks: Chunk[] = [
+    masthead(),
     paragraph(doc.title, 20, true, INK, 6),
     ...(doc.subtitle ? [paragraph(doc.subtitle, 11, false, MUTED, 8)] : []),
     ...doc.meta.map((entry) => paragraph(`${entry.label}: ${entry.value}`, 9, false, MUTED, 2)),
     { height: 12, items: [], breakable: true },
     ...doc.blocks.flatMap(blockChunks),
+    {
+      height: 14,
+      items: [{ item: { kind: 'line', x1: 0, y1: 8, x2: USABLE, y2: 8, color: RULE }, dy: 0 }],
+      breakable: true,
+    },
+    paragraph(
+      'Produced by HELM - paid-media intelligence for Google Ads and Meta Ads. ' +
+        'Every figure traces to a source account and a complete reporting day.',
+      8,
+      false,
+      MUTED,
+      0,
+    ),
   ];
 
   const usableHeight = PAGE.height - PAGE.margin * 2;
