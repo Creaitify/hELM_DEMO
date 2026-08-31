@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { env } from '../env.js';
-import { fetchWithTimeout } from './http.js';
 
 /**
  * Image generation for the creative studio.
@@ -89,7 +88,7 @@ async function generateWithGemini(input: GenerateImageInput): Promise<GeneratedI
   const model = env.images.model || env.images.geminiModel;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-  const response = await fetchWithTimeout(url, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -128,7 +127,7 @@ async function generateWithOpenAI(input: GenerateImageInput): Promise<GeneratedI
     input.aspect === '1:1' ? '1024x1024' : input.aspect === '16:9' ? '1536x1024' : '1024x1536';
 
   const model = env.images.model || env.images.openaiModel;
-  const response = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
+  const response = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
