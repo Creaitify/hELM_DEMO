@@ -131,13 +131,23 @@ export function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof HelmHttpError) {
     return reply.status(error.status).send(error.toBody());
   }
-  const message = error instanceof Error ? error.message : 'Something went wrong.';
-  request_log(error);
-  return reply.status(500).send({
-    error: { code: 'service_unavailable', message, retryable: true },
-  });
-}
 
-function request_log(error: unknown) {
-  if (!env.isProduction) console.error(error);
+  // An expected error carries its own status and is not a fault. Anything
+  // reaching here is one, so it goes to the request logger — which is the only
+  // place it can be correlated with the request that caused it.
+  //
+  // This used to log to the console and only outside production, which meant
+  // the one environment where a 500 matters was the one environment where it
+  // left no trace at all.
+  reply.log.error({ err: error }, 'unhandled error');
+
+  // The message is deliberately not the thrown one: an exception string is
+  // written for a developer and can carry a query, a path or a token.
+  return reply.status(500).send({
+    error: {
+      code: 'service_unavailable',
+      message: 'Something went wrong on our side. The request was not completed.',
+      retryable: true,
+    },
+  });
 }

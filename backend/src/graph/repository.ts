@@ -643,7 +643,14 @@ export async function listMetricDays(
   workspaceId: string,
   range: { start: string; end: string; accountIds?: string[] },
 ): Promise<MetricDay[]> {
-  const rows = await graph().listNodes<MetricDay>('MetricDay', { workspaceId });
+  // The store narrows by date when it can. Where it cannot, the filter below
+  // still applies — the result is identical either way, only the volume read
+  // off the wire differs.
+  const store = graph();
+  const rows = store.listNodesInDateRange
+    ? await store.listNodesInDateRange<MetricDay>('MetricDay', { workspaceId }, range)
+    : await store.listNodes<MetricDay>('MetricDay', { workspaceId });
+
   const wanted = range.accountIds ? new Set(range.accountIds) : null;
   return rows
     .filter((row) => row.date >= range.start && row.date <= range.end)
@@ -651,10 +658,17 @@ export async function listMetricDays(
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
-/** Whether a workspace has any measured rows at all. */
+/**
+ * Whether a workspace has any measured rows at all.
+ *
+ * This is a question about existence, and it used to be answered by reading
+ * every row in the workspace and taking the length — the most expensive
+ * possible way to find out whether a collection is empty. `some` stops at the
+ * first row.
+ */
 export async function hasMetricDays(workspaceId: string): Promise<boolean> {
   const rows = await graph().listNodes<MetricDay>('MetricDay', { workspaceId });
-  return rows.length > 0;
+  return rows.some(Boolean);
 }
 
 /* ----------------------------------------------------------- brand kits -- */

@@ -438,12 +438,34 @@ export type AuditEntry = {
   context: string;
 };
 
+/**
+ * Mirrors PERMISSIONS in backend/src/auth/rbac.ts exactly.
+ *
+ * This listed five of the eighteen, so any surface asking whether the reader
+ * could, say, run an investigation or read the audit was writing a string the
+ * type did not admit. The two lists have to be edited together; there is no
+ * generator, and a missing value here fails the build at the call site rather
+ * than silently at runtime, which is the behaviour worth having.
+ */
 export type Permission =
+  | 'workspace.read'
   | 'workspace.manage'
+  | 'members.read'
+  | 'members.manage'
+  | 'connections.read'
   | 'connections.manage'
+  | 'connections.delete_data'
+  | 'analytics.read'
+  | 'scopes.manage'
+  | 'intelligence.read'
+  | 'intelligence.run'
   | 'recommendations.approve'
+  | 'library.read'
+  | 'library.create'
   | 'library.publish'
-  | 'members.manage';
+  | 'studio.generate'
+  | 'audit.read'
+  | 'ops.read';
 
 export type UserPreference = {
   locale: string;

@@ -26,7 +26,14 @@ export type RelationSpec = {
 };
 
 export interface GraphStore {
-  readonly kind: 'neo4j' | 'memory';
+  /**
+   * Which implementation this is.
+   *
+   * Postgres used to report 'neo4j' because the union was never widened for
+   * it, with a separate `flavour` bolted alongside to carry the truth. A store
+   * that misreports itself makes every diagnostic that reads this wrong.
+   */
+  readonly kind: 'postgres' | 'neo4j' | 'memory';
   connect(): Promise<void>;
   close(): Promise<void>;
   verify(): Promise<{ ok: boolean; detail: string }>;
@@ -69,6 +76,24 @@ export interface GraphStore {
   relationProps(spec: Omit<RelationSpec, 'props'>): Promise<NodeProps | null>;
 
   counts(): Promise<{ nodes: number; relationships: number; labels: Record<string, number> }>;
+
+  /**
+   * Nodes whose `date` field falls inside a range, done by the store.
+   *
+   * Optional because not every store can do this better than the caller can.
+   * The daily metric rows are the one label that grows without bound — a
+   * workspace measuring four accounts adds about 120 rows a day — and reading
+   * all of them to answer a thirty-day question is the difference between an
+   * indexed range scan and a full table read.
+   *
+   * A store that does not implement it is not wrong; the repository falls back
+   * to filtering in memory, which is what every store did before.
+   */
+  listNodesInDateRange?<T extends NodeProps>(
+    label: string,
+    where: NodeProps,
+    range: { start: string; end: string },
+  ): Promise<GraphNode<T>[]>;
 }
 
 /* ----------------------------------------------------------------------- */

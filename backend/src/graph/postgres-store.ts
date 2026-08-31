@@ -46,7 +46,7 @@ CREATE INDEX IF NOT EXISTS helm_nodes_body ON helm_nodes USING gin (body jsonb_p
 `;
 
 export class PostgresGraphStore implements GraphStore {
-  readonly kind = 'neo4j' as const;
+  readonly kind = 'postgres' as const;
   /** Reported separately so health can say Neon rather than a driver name. */
   readonly flavour = 'neon' as const;
 
@@ -176,6 +176,27 @@ export class PostgresGraphStore implements GraphStore {
           [label, JSON.stringify(where)],
         )
       : await this.run<{ body: NodeProps }>('SELECT body FROM helm_nodes WHERE label = $1', [label]);
+    return rows.map((row) => row.body as GraphNode<T>);
+  }
+
+  /**
+   * The range is pushed into SQL rather than filtered after the fact.
+   *
+   * `body->>'date'` compares as text, which is exactly right for the ISO
+   * YYYY-MM-DD the rows store: lexicographic and chronological order are the
+   * same string for that format.
+   */
+  async listNodesInDateRange<T extends NodeProps>(
+    label: string,
+    where: NodeProps,
+    range: { start: string; end: string },
+  ) {
+    const rows = await this.run<{ body: NodeProps }>(
+      `SELECT body FROM helm_nodes
+       WHERE label = $1 AND body @> $2::jsonb
+         AND body->>'date' >= $3 AND body->>'date' <= $4`,
+      [label, JSON.stringify(where), range.start, range.end],
+    );
     return rows.map((row) => row.body as GraphNode<T>);
   }
 
