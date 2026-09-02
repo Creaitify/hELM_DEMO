@@ -21,6 +21,16 @@ const nextConfig = {
   output: 'export',
   basePath: '/hELM_DEMO',
   assetPrefix: '/hELM_DEMO/',
+  /*
+   * Export a directory per route, not a sibling .html file.
+   *
+   * Without this, /w/northstar-group resolves (Pages serves
+   * northstar-group.html for it) but /w/northstar-group/ does not — there is
+   * no directory for it to find an index in, so a trailing slash 404s. People
+   * paste URLs with trailing slashes constantly. Writing index.html into a
+   * directory makes both spellings work.
+   */
+  trailingSlash: true,
   reactStrictMode: true,
   /*
    * Where the build output goes.
