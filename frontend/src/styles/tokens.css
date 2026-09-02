@@ -43,12 +43,12 @@
      attention — and both need a quiet ground to read against.
 
      The public pages keep the original palette — see .pub-world below. */
-  --canvas: #f4f4f1;
-  --surface: #faf9f6;
-  --surface-subtle: #f7f6f1;
-  --surface-sunk: #efefeb;
-  --line: #e5e4de;
-  --line-strong: #ceccc4;
+  --canvas: #ece5d8;
+  --surface: #f8f3e9;
+  --surface-subtle: #f3ecdf;
+  --surface-sunk: #e7dfcf;
+  --line: #ded4c0;
+  --line-strong: #c4b79c;
   --ink-950: #1a1a17;
   --ink-700: #45443e;
   --ink-500: #76746c;
