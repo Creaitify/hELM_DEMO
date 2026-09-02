@@ -34,6 +34,7 @@ import * as repo from '../graph/repository.js';
 import { brandBriefing, resolveBrandKit } from '../domain/brand.js';
 import { storeStudioAsset } from '../studio/assets.js';
 import { scriptedCreative, scriptedFindings, scriptedRecommendations } from './scripted.js';
+import { DIRECTION_RESULT_SCHEMA, FINDING_RESULT_SCHEMA, VERDICT_SCHEMA } from './schemas.js';
 
 /**
  * The orchestrator.
@@ -434,31 +435,40 @@ ${JSON.stringify(
 Its output:
 ${JSON.stringify(result.reviewable, null, 2)}`,
     shape: '{"grounding": 0.0, "quality": 0.0, "passed": true, "note": "one short sentence"}',
+    schema: VERDICT_SCHEMA,
     fallback: {
       grounding: result.grounding,
       quality: result.quality,
-      passed: Math.min(result.grounding, result.quality) >= GATE_THRESHOLD,
-      note: definition.gate,
+      // A review that did not happen is not a review that passed. Sending the
+      // specialist back costs a revision; letting its own structural
+      // self-score wave it through costs the reader a claim nobody checked.
+      passed: false,
+      note: 'The review did not complete, so this output was not cleared.',
     },
     model: env.anthropic.reviewModel,
     maxTokens: 512,
   });
 
   const value = judgement.value;
-  const grounding = Number.isFinite(Number(value.grounding))
-    ? Math.max(0, Math.min(1, Number(value.grounding)))
-    : result.grounding;
-  const quality = Number.isFinite(Number(value.quality))
-    ? Math.max(0, Math.min(1, Number(value.quality)))
-    : result.quality;
+
+  // The schema guarantees these are numbers when the reviewer actually
+  // answered; the clamp is for the fallback path, which carries the
+  // specialist's own scores.
+  const grounding = Math.max(0, Math.min(1, Number(value.grounding)));
+  const quality = Math.max(0, Math.min(1, Number(value.quality)));
 
   return {
     // A reviewer may lower a structural score; it may not invent a better one.
     grounding: Math.min(grounding, result.grounding + 0.15),
     quality,
-    passed: Boolean(value.passed) && grounding >= GATE_THRESHOLD * 0.9,
+    // Both scores gate. Quality was previously computed and then ignored,
+    // so a well-grounded but poorly made output cleared the gate on grounding
+    // alone. `passed` is compared strictly because the string "false" is
+    // truthy, and a model that answers "passed": "false" means it failed.
+    passed:
+      value.passed === true && grounding >= GATE_THRESHOLD && quality >= GATE_THRESHOLD * 0.9,
     note: String(value.note ?? definition.gate),
-    reviewedBy: judgement.live ? judgement.model : 'deterministic gate',
+    reviewedBy: judgement.usedFallback ? 'deterministic gate' : judgement.model,
   };
 }
 
@@ -881,6 +891,48 @@ export function highlightsFor(pack: EvidencePack, campaignIds: string[]): Metric
  * A finding whose campaign did not get more expensive has no exposure to size,
  * and gets none. An absent figure is honest; a fabricated one is not.
  */
+/**
+ * The ceiling on what a proposal may move, bounded against real spend.
+ *
+ * This is the number a person approves, so it is the last place to take a
+ * model's word for a figure. It is the same hundredfold-error class already
+ * found and fixed for exposure above: minor units asked for, major units
+ * returned. A cap larger than the campaigns it covers is not a cap, and one
+ * near zero silently neuters the proposal — so anything outside a plausible
+ * share of the finding's own spend is replaced by a derived figure rather
+ * than shown to someone about to authorise it.
+ */
+function capFor(
+  proposed: unknown,
+  finding: Finding,
+  pack: EvidencePack,
+): Recommendation['cap'] {
+  const spend = pack.movement
+    .filter((row) => finding.affectedCampaignIds.includes(row.campaignId))
+    .reduce((total, row) => total + row.spend, 0);
+
+  // Nothing to size against: a cap would be a number with no referent.
+  if (spend <= 0) return undefined;
+
+  const derived = Math.round(spend * 0.15 * 100);
+  const floor = Math.round(spend * 0.01 * 100);
+  const ceiling = Math.round(spend * 0.5 * 100);
+
+  const asNumber = Number(proposed);
+  const usable =
+    proposed !== null &&
+    proposed !== undefined &&
+    proposed !== '' &&
+    Number.isFinite(asNumber) &&
+    asNumber >= floor &&
+    asNumber <= ceiling;
+
+  return {
+    currency: pack.currency,
+    minorUnits: String(usable ? Math.round(asNumber) : derived),
+  };
+}
+
 export function exposureFor(pack: EvidencePack, campaignIds: string[]): Finding['exposure'] {
   const named = pack.movement.filter((row) => campaignIds.includes(row.campaignId));
   const lead = [...named].sort((a, b) => (b.deltaCpa ?? 0) - (a.deltaCpa ?? 0))[0];
@@ -956,6 +1008,7 @@ Write two to four findings, worst-cost first, and one capped proposal for each d
 
 Grade them honestly. A finding is decision-grade only when it carries real money this week and a person has to choose something. A real but directional signal is "watch". Something you checked and found behaving is "stable", and reporting it is useful because it saves someone looking. A set where everything is decision-grade tells the reader nothing about what to open first.`,
       shape: FINDING_SHAPE,
+      schema: FINDING_RESULT_SCHEMA,
       fallback: {
         findings: fallbackFindings,
         recommendations: [] as ReturnType<typeof scriptedRecommendations>,
@@ -1018,8 +1071,14 @@ Grade them honestly. A finding is decision-grade only when it carries real money
         : scriptedRecommendations(context.pack, context.findings);
 
     for (const [index, row] of proposalRows.slice(0, 3).entries()) {
-      const finding = context.findings[Number(row.findingIndex) || 0] ?? context.findings[0];
-      if (!finding) break;
+      // An index the model invented must not quietly become finding #1: the
+      // proposal's account and campaign scope is copied from whatever it lands
+      // on below, so a silent default renames the campaigns it is about.
+      const proposedIndex = Number(row.findingIndex);
+      const finding = Number.isInteger(proposedIndex)
+        ? context.findings[proposedIndex]
+        : undefined;
+      if (!finding) continue;
 
       const recommendation: Recommendation = {
         id: `rec_${context.run.id}_${index + 1}`,
@@ -1034,7 +1093,7 @@ Grade them honestly. A finding is decision-grade only when it carries real money
           ? row.expectedDirection
           : 'investigate') as Recommendation['expectedDirection'],
         expectedRange: String(row.expectedRange ?? 'Direction only — the window is too short for a range.'),
-        cap: row.capMinorUnits ? { currency: context.pack.currency, minorUnits: String(row.capMinorUnits) } : undefined,
+        cap: capFor(row.capMinorUnits, finding, context.pack),
         horizon: String(row.horizon ?? '14 days'),
         stopConditions: Array.isArray(row.stopConditions) ? row.stopConditions.map(String) : [],
         effort: (['low', 'medium', 'high'].includes(row.effort) ? row.effort : 'medium') as Recommendation['effort'],
@@ -1077,7 +1136,11 @@ Grade them honestly. A finding is decision-grade only when it carries real money
         : Math.min(1, 0.5 + context.findings.length * 0.12),
       tokensIn: result.tokensIn,
       tokensOut: result.tokensOut,
-      note: result.live
+      // `live` says the call happened, not that its answer was usable. A model
+      // that returns the wrong shape is live and unusable, and crediting it
+      // with the scripted findings that replaced it is the one claim in the
+      // product a reader has no way to check.
+      note: !result.usedFallback
         ? `${context.findings.length} findings and ${context.recommendations.length} proposals from ${result.model}`
         : `${context.findings.length} findings and ${context.recommendations.length} proposals from HELM sample reasoning`,
       output: {
@@ -1165,6 +1228,7 @@ ${brandGuidance}
 
 Write three replacement directions.`,
       shape: `{"directions": [{"title": "...", "headline": "SHORT LINE", "subline": "...", "rationale": "...", "direction": "product-proof" | "field-use" | "typographic" | "evidence"}]}`,
+      schema: DIRECTION_RESULT_SCHEMA,
       fallback,
       model: AGENTS.creative.model,
     });
@@ -1191,7 +1255,7 @@ Write three replacement directions.`,
         type: 'creative_direction',
         mode: 'creative',
         updatedAt: nowIso(),
-        createdBy: `${AGENTS.creative.name} · ${result.live ? result.model : 'HELM sample direction'}`,
+        createdBy: `${AGENTS.creative.name} · ${!result.usedFallback ? result.model : 'HELM sample direction'}`,
         status: 'draft',
         linkedRunId: context.run.id,
         summary: direction.rationale,
@@ -1213,7 +1277,7 @@ Write three replacement directions.`,
       quality: Math.min(1, 0.5 + context.directions.length * 0.18),
       tokensIn: result.tokensIn,
       tokensOut: result.tokensOut,
-      note: result.live
+      note: !result.usedFallback
         ? `${context.directions.length} directions from ${result.model}`
         : `${context.directions.length} directions from HELM sample reasoning`,
       output: {

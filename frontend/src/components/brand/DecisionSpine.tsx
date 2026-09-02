@@ -36,7 +36,7 @@ export function DecisionSpine({ className, compact = false }: { className?: stri
             <span className="text-night-faint" aria-hidden="true">
               <IconArrowRight size={17} />
             </span>
-            <span className="inline-flex items-center gap-2 rounded-control border border-[rgba(169,189,255,.32)] bg-[rgba(61,91,214,.14)] px-2.5 py-1.5 text-night-ink">
+            <span className="inline-flex items-center gap-2 rounded-control border border-[rgba(169,189,255,.32)] bg-[rgba(15,107,109,.14)] px-2.5 py-1.5 text-night-ink">
               <GoogleAdsMark size={15} />
               {recommendation.to}
             </span>

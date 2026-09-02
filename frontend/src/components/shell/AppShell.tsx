@@ -1,10 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { AccountGroup, AccountScope, AdAccount, Workspace } from '@/contracts';
 import { AppRail } from './AppRail';
 import { AgentOrb } from './AgentOrb';
+import { AgentProvider, useAgent } from '@/features/agent/AgentProvider';
+import { AgentConsole } from '@/features/agent/AgentConsole';
 import { MobileNavigation, ScopeBar } from './ScopeBar';
 import { GlobalCommand } from './GlobalCommand';
 import { AccountScopeCommand } from '@/components/scope/AccountScopeCommand';
@@ -62,27 +65,27 @@ export function AppShell({
   query: string;
   children: ReactNode;
 }) {
+  const pathname = usePathname();
   const [commandOpen, setCommandOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setCommandOpen(true);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  // Stable, so the hotkey listener subscribes once for the life of the shell.
+  const openCommand = useCallback(() => setCommandOpen(true), []);
 
   const scopeAccountCount = scopes.find((scope) => scope.id === scopeId)?.accountIds.length ?? 0;
 
   return (
-    <div className="flex min-h-dvh bg-canvas">
+    /*
+     * The agent wraps the shell rather than sitting inside it, so anything
+     * rendered below — a metric cell, a finding, a timeline row — can hand it
+     * a subject without routing the request through the orb.
+     */
+    <AgentProvider workspaceSlug={workspace.slug}>
+      <CommandHotkey onOpen={openCommand} />
+      <div className="flex min-h-dvh bg-canvas">
       {/* The rail reads the tab from the URL, so it needs its own boundary
           or the whole route below loading.tsx de-opts to client rendering. */}
-      <Suspense fallback={<div className="hidden w-[228px] shrink-0 border-r border-rail-line bg-rail lg:block" />}>
+      <Suspense fallback={<div className="hidden w-[236px] shrink-0 border-r border-rail-line bg-rail lg:block" />}>
         <AppRail
           workspace={workspace}
           workspaces={workspaces}
@@ -124,7 +127,7 @@ export function AppShell({
         </div>
 
         {/* Desktop scope bar */}
-        <div className="hidden lg:block">
+        <div className="vt-scope hidden lg:block">
           <Suspense
             fallback={<div className="h-[62px] border-b border-line bg-surface" aria-hidden="true" />}
           >
@@ -139,7 +142,7 @@ export function AppShell({
               compare={compare}
               freshnessLabel={freshnessLabel}
               nowIso={nowIso}
-              onOpenCommand={() => setCommandOpen(true)}
+              onOpenCommand={openCommand}
             />
           </Suspense>
         </div>
@@ -160,17 +163,29 @@ export function AppShell({
           </Link>
         ) : null}
 
-        <main id="main" className="min-w-0 flex-1">
-          {children}
+        {/*
+          The only part of the shell that changes when you switch tabs.
+
+          Keying the frame on the pathname is what makes the arrival animation
+          run per route rather than once per session, and `vt-content` names
+          this region so the browser animates it alone — the rail and the scope
+          bar above are held still by name in motion.css.
+        */}
+        <main id="main" className="vt-content min-w-0 flex-1">
+          <div key={pathname} className="route-frame">
+            {children}
+          </div>
         </main>
 
         <MobileNavigation workspaceSlug={workspace.slug} query={query} />
       </div>
 
-      <AgentOrb
+      <AgentOrb decisionCount={decisionCount} activeRun={activeRun} />
+
+      <AgentConsole
         workspaceSlug={workspace.slug}
-        decisionCount={decisionCount}
         activeRun={activeRun}
+        decisionCount={decisionCount}
       />
 
       <GlobalCommand
@@ -181,6 +196,7 @@ export function AppShell({
         rangeLabel={rangeLabel}
         accountCount={scopeAccountCount}
         freshnessLabel={freshnessLabel}
+        accounts={accounts}
       />
 
       {/* Settings, connections and account live in the mobile More sheet */}
@@ -237,14 +253,46 @@ export function AppShell({
           <IconFreshness size={14} />
           {freshnessLabel}
         </p>
-      </Sheet>
-    </div>
+        </Sheet>
+      </div>
+    </AgentProvider>
   );
+}
+
+/**
+ * ⌘K, and the one rule about it.
+ *
+ * The palette and the console both take the whole screen behind a blur, and
+ * both listen for Escape. Open one over the other and you get two blurs
+ * stacked — and an Escape that dismisses the wrong one, because the console
+ * listens on the document in the capture phase and would answer first.
+ *
+ * So they are mutually exclusive: asking for the palette stands the console
+ * down. It lives in its own component because standing the console down needs
+ * the agent context, and AppShell is the thing that renders the provider.
+ */
+function CommandHotkey({ onOpen }: { onOpen: () => void }) {
+  const { closeConsole } = useAgent();
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        closeConsole();
+        onOpen();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [closeConsole, onOpen]);
+
+  return null;
 }
 
 /** Consistent page container across every product route. */
 export function PageShell({
   title,
+  eyebrow,
   context,
   actions,
   children,
@@ -252,6 +300,11 @@ export function PageShell({
   dense = false,
 }: {
   title: string;
+  /**
+   * The register above the title. A page in a stack of ten needs to say which
+   * stack it belongs to before it says its own name.
+   */
+  eyebrow?: string;
   context?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
@@ -271,22 +324,35 @@ export function PageShell({
       className={cn(
         'mx-auto w-full px-4 sm:px-6',
         wide ? 'max-w-canvas' : 'max-w-shell',
-        dense ? 'py-4 sm:py-5' : 'py-6 sm:py-8',
+        dense ? 'py-4 sm:py-5' : 'py-7 sm:py-9',
       )}
     >
-      <header
-        className={cn(
-          'flex flex-wrap items-end justify-between gap-x-6 border-b border-line',
-          dense ? 'gap-y-2 pb-3' : 'gap-y-3 pb-5',
-        )}
-      >
-        <div className="min-w-0">
-          <h1 className={cn(dense ? 'text-section' : 'text-page', 'text-ink-950')}>{title}</h1>
-          {context ? <div className={dense ? 'mt-1' : 'mt-2.5'}>{context}</div> : null}
+      {/*
+        The masthead.
+
+        A rule above the title rather than a border under it. Printed pages
+        divide themselves this way round: the heavy line opens the section and
+        the whitespace beneath it is the breath before the text. A border below
+        a heading closes it off instead, which is why every dashboard built
+        that way reads as a stack of boxes.
+      */}
+      <header className={cn('rule-heavy', dense ? 'pt-3' : 'pt-4')}>
+        <div
+          className={cn(
+            'flex flex-wrap items-end justify-between gap-x-8',
+            dense ? 'gap-y-2' : 'gap-y-4',
+          )}
+        >
+          <div className="min-w-0">
+            {eyebrow ? <p className="micro-label mb-1.5">{eyebrow}</p> : null}
+            <h1 className={cn(dense ? 'text-section' : 'text-page', 'text-ink-950')}>{title}</h1>
+            {context ? <div className={dense ? 'mt-1' : 'mt-2.5'}>{context}</div> : null}
+          </div>
+          {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
       <div className={dense ? 'mt-5' : 'mt-8'}>{children}</div>
     </div>
   );
 }
+

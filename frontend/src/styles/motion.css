@@ -81,6 +81,190 @@
 }
 .chart-fade { animation: helm-fade var(--t-chart) var(--ease-out) both; }
 
+/* ============================================================
+   Arrival: content that settles rather than appears
+
+   A page whose every element fades in at once still reads as a page that
+   was loading. Staggering the first few blocks by a beat each reads as a
+   page being laid out — the same total time, a completely different
+   impression of speed.
+
+   The stagger is capped at six children. Past that the delay becomes a
+   wait, which is the opposite of the point.
+   ============================================================ */
+@keyframes helm-settle {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+.settle > * {
+  animation: helm-settle 460ms var(--ease-entrance) both;
+}
+.settle > *:nth-child(1) { animation-delay: 0ms; }
+.settle > *:nth-child(2) { animation-delay: 45ms; }
+.settle > *:nth-child(3) { animation-delay: 90ms; }
+.settle > *:nth-child(4) { animation-delay: 135ms; }
+.settle > *:nth-child(5) { animation-delay: 180ms; }
+.settle > *:nth-child(n + 6) { animation-delay: 215ms; }
+
+/* A single element that settles on its own schedule. */
+.anim-settle { animation: helm-settle 460ms var(--ease-entrance) both; }
+
+/* ============================================================
+   Route changes
+
+   The shell never moves. Only the content region swaps, and it swaps by
+   lifting the outgoing frame a few pixels while the incoming one arrives
+   — the read is "the page turned", not "the app reloaded".
+
+   Where the browser supports view transitions this is driven by the real
+   snapshot pair; where it does not, the incoming content still settles,
+   so the fallback is a shorter version of the same idea rather than a
+   hard cut.
+   ============================================================ */
+@keyframes helm-route-in {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes helm-route-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translate3d(0, -4px, 0); }
+}
+
+.route-frame {
+  animation: helm-route-in var(--t-route) var(--ease-entrance) both;
+}
+
+::view-transition-old(helm-content) {
+  animation: helm-route-out 150ms var(--ease-exit) both;
+}
+::view-transition-new(helm-content) {
+  animation: helm-route-in var(--t-route) var(--ease-entrance) both;
+}
+/* The rail and the scope bar are continuous furniture. Naming them keeps
+   the browser from cross-fading them against themselves, which is what
+   makes a whole-page transition feel like a flicker. */
+::view-transition-group(helm-rail),
+::view-transition-group(helm-scope) {
+  animation: none;
+}
+
+/* ============================================================
+   Loading: paper being set, not a spinner
+
+   Two pieces. The shimmer is a warm sweep across the block that will hold
+   the content — it travels in the reading direction, so it points at where
+   the eye is about to go. The mark is the brand rule drawing itself once
+   for a genuinely slow load.
+   ============================================================ */
+@keyframes helm-shimmer {
+  from { transform: translate3d(-100%, 0, 0); }
+  to   { transform: translate3d(200%, 0, 0); }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-sunk);
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translate3d(-100%, 0, 0);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 253, 248, 0.16) 22%,
+    rgba(255, 253, 248, 0.72) 50%,
+    rgba(255, 253, 248, 0.16) 78%,
+    transparent 100%
+  );
+  animation: helm-shimmer 1650ms var(--ease-standard) infinite;
+}
+/* Later blocks start their sweep later, so the skeleton reads top-to-bottom
+   like the page it is standing in for. */
+.shimmer-d1::after { animation-delay: 90ms; }
+.shimmer-d2::after { animation-delay: 180ms; }
+.shimmer-d3::after { animation-delay: 270ms; }
+
+/* The tracking mark: three rules of a scoreline finding their level. */
+@keyframes helm-track {
+  0%   { transform: scaleX(0); opacity: 0.35; }
+  55%  { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0.35; }
+}
+.track-bar {
+  transform-origin: left center;
+  animation: helm-track 1400ms var(--ease-standard) infinite;
+}
+.track-d1 { animation-delay: 120ms; }
+.track-d2 { animation-delay: 240ms; }
+
+/* ============================================================
+   The agent
+
+   At rest the orb breathes — slowly enough that it is not a notification,
+   visibly enough that it reads as something running rather than a button
+   somebody left there. When it has something to say the ring pulses out
+   once per cycle instead.
+   ============================================================ */
+@keyframes helm-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.045); }
+}
+@keyframes helm-halo {
+  0%   { transform: scale(0.9); opacity: 0.55; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+@keyframes helm-orb-sheen {
+  0%   { transform: translate3d(-120%, 0, 0) rotate(18deg); }
+  100% { transform: translate3d(220%, 0, 0) rotate(18deg); }
+}
+
+.orb-breathe { animation: helm-breathe 4200ms var(--ease-standard) infinite; }
+.orb-halo    { animation: helm-halo 2600ms var(--ease-standard) infinite; }
+.orb-sheen   { animation: helm-orb-sheen 5200ms var(--ease-standard) infinite; }
+
+/* The overlay the orb opens. The scrim brings the blur up rather than
+   snapping it on, because an instant blur reads as a screenshot being
+   swapped in. The panel rises from the orb's side of the screen. */
+@keyframes helm-scrim-in {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to   { opacity: 1; backdrop-filter: blur(18px); }
+}
+@keyframes helm-console-in {
+  from { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.anim-scrim   { animation: helm-scrim-in 240ms var(--ease-out) both; }
+.anim-console { animation: helm-console-in 320ms var(--ease-entrance) both; }
+
+/* Three dots that think. Used only while a reply is actually in flight. */
+@keyframes helm-think {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30%           { opacity: 1;    transform: translateY(-3px); }
+}
+.think-dot { animation: helm-think 1250ms var(--ease-standard) infinite; }
+.think-d1  { animation-delay: 140ms; }
+.think-d2  { animation-delay: 280ms; }
+
+/* A reply arriving. Assistant turns land; user turns are already there. */
+@keyframes helm-turn-in {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+.anim-turn { animation: helm-turn-in 300ms var(--ease-entrance) both; }
+
+/* ============================================================
+   Reduced motion
+
+   Everything above has a complete final state without its animation. The
+   ambient loops stop entirely; the arrival animations resolve instantly
+   rather than being removed, so nothing is left at opacity 0.
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -99,6 +283,24 @@
   .packet-layer,
   .anim-mist { display: none !important; }
   .anim-working { opacity: 1 !important; }
+
+  /* Ambient loops are decoration by definition — they carry no state that
+     is not also written down, so they simply stop. */
+  .shimmer::after,
+  .orb-halo,
+  .orb-sheen { display: none !important; }
+  .orb-breathe { animation: none !important; }
+  .track-bar { transform: scaleX(1) !important; opacity: 1 !important; }
+  .think-dot { opacity: 1 !important; }
+
+  .settle > *,
+  .anim-settle,
+  .route-frame,
+  .anim-turn,
+  .anim-console { opacity: 1 !important; transform: none !important; }
+
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }
 
 /* A signal travelling down the workflow connector while a node is working.

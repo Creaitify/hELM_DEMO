@@ -28,7 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const SHOTS = resolve(here, '../screenshots');
 
 const BASE = process.env.HELM_BASE_URL ?? 'http://localhost:3000';
-const API = process.env.HELM_API_ORIGIN ?? 'http://localhost:8000';
+const API = process.env.HELM_API_ORIGIN ?? 'http://localhost:8100';
 const WORKSPACE = process.env.HELM_WORKSPACE ?? 'northstar-group';
 
 /** Only the loading skeleton renders animate-pulse, so it is the tell. */
@@ -126,7 +126,7 @@ function routes({ runId, campaignId, evidenceId }) {
     { name: 'briefing', path: w, heading: /^Briefing$/ },
     { name: 'campaigns', path: `${w}/campaigns`, heading: /^Campaigns$/ },
     { name: 'campaign-detail', path: `${w}/campaigns/${campaignId}`, heading: /.+/ },
-    { name: 'intelligence', path: `${w}/intelligence`, heading: /^Intelligence$/ },
+    { name: 'intelligence', path: `${w}/intelligence`, heading: /^Agent Fleet$/ },
     { name: 'run', path: `${w}/intelligence/${runId}`, heading: /.+/ },
     { name: 'evidence', path: `${w}/evidence/${evidenceId}`, heading: /.+/ },
     { name: 'assets', path: `${w}/library`, heading: /^Assets$/ },
@@ -135,6 +135,19 @@ function routes({ runId, campaignId, evidenceId }) {
     { name: 'connections', path: `${w}/connections`, heading: /^Connections$/ },
     { name: 'settings', path: `${w}/settings`, heading: /^Settings$/ },
     { name: 'ops', path: '/ops', heading: /^Operator console$/, shell: false },
+
+    /*
+     * The other two workspaces, which are deliberately empty.
+     *
+     * Checking one populated workspace proved only that the populated path
+     * works. A workspace with no accounts took the whole shell down — the
+     * scope control read `scopes[0].accountIds` on an empty list — and this
+     * suite passed the entire time, because it never opened one. An empty
+     * workspace is the first thing a new customer sees, so it is verified
+     * like any other screen.
+     */
+    { name: 'workspace-empty', path: '/w/meridian-labs', heading: /^Briefing$/ },
+    { name: 'workspace-expired', path: '/w/harbour-and-co', heading: /^Briefing$/ },
   ];
 }
 

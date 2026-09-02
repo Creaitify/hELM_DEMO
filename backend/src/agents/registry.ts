@@ -100,13 +100,17 @@ export function poweringTheFleet() {
     },
     {
       label: 'Decision graph',
-      value: env.database.enabled ? 'Neon Postgres' : env.neo4j.enabled ? 'Neo4j' : 'In-process graph',
+      // What the reader needs is that the reasoning is traceable, not which
+      // engine stores it. Naming the datastore here put an infrastructure
+      // detail on a product screen, where it tells the reader nothing they can
+      // act on and quietly advertises how the deployment is wired.
+      value: 'Connected',
       note: 'Every finding, recommendation and decision is a node with traceable edges.',
     },
     {
       label: 'Image studio',
       value: imageModelName(),
-      note: 'Swap the provider in .env — no code change.',
+      note: 'Every generated asset is filed against the run that produced it.',
     },
   ];
 }

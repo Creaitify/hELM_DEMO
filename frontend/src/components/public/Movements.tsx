@@ -16,7 +16,7 @@ import { cn } from '@/lib/cn';
 function Kicker({ index, label }: { index: string; label: string }) {
   return (
     <p className="pub-eyebrow flex items-center gap-3">
-      <span className="text-[#7C8AA8]">{index}</span>
+      <span className="text-[#6F918F]">{index}</span>
       <span className="h-px w-8 bg-night-line" aria-hidden="true" />
       {label}
     </p>
@@ -74,8 +74,8 @@ export function MovementOneMoneyView() {
             />
             <div className="bg-night-800/60 p-6 lg:p-7">
               <div className="flex items-center gap-2.5">
-                <span className="h-2 w-2 rounded-full bg-[#A9BDFF]" aria-hidden="true" />
-                <p className="mono text-[10.5px] uppercase tracking-[0.12em] text-[#B8A7FF]">
+                <span className="h-2 w-2 rounded-full bg-night-accent" aria-hidden="true" />
+                <p className="mono text-[10.5px] uppercase tracking-[0.12em] text-[#6BB3AD]">
                   HELM decision view
                 </p>
               </div>
@@ -276,7 +276,7 @@ export function MovementDecisionBrief() {
           {/* Scrolling evidence */}
           <ol className="relative space-y-0 pl-8">
             <span
-              className="absolute bottom-6 left-[9px] top-4 w-px bg-gradient-to-b from-[rgba(124,91,255,.55)] via-night-line to-transparent"
+              className="absolute bottom-6 left-[9px] top-4 w-px bg-gradient-to-b from-[rgba(23,140,138,.55)] via-night-line to-transparent"
               aria-hidden="true"
             />
             {BRIEF_STEPS.map((entry, index) => (
@@ -451,7 +451,7 @@ export function MovementAccountOptionality() {
                 ['Compatibility is enforced', 'Accounts that cannot be blended say so instead of producing a wrong total.'],
               ].map(([title, body]) => (
                 <li key={title} className="flex gap-3.5">
-                  <span className="mt-[3px] shrink-0 text-[#A9BDFF]">
+                  <span className="mt-[3px] shrink-0 text-night-accent">
                     <IconScope size={17} />
                   </span>
                   <span>
@@ -616,7 +616,7 @@ export function MovementEvidenceAndControl() {
             {/* Security and access */}
             <div id="security" className="mt-10 rounded-editorial border border-night-line bg-night-900/40 p-6 lg:p-7">
               <div className="flex items-center gap-2.5">
-                <span className="text-[#A9BDFF]">
+                <span className="text-night-accent">
                   <IconShield size={19} />
                 </span>
                 <h3 className="text-[19px] font-semibold text-night-ink">Security and access</h3>
@@ -655,7 +655,7 @@ export function ClosingTransition() {
     <section className="relative overflow-hidden">
       <div
         className="h-28 w-full sm:h-36"
-        style={{ background: 'linear-gradient(to bottom, #070A12 0%, #101733 42%, #6E82C0 78%, #E5EDFA 100%)' }}
+        style={{ background: 'linear-gradient(to bottom, #08201F 0%, #143739 42%, #4E8C89 78%, #EFF6F5 100%)' }}
         aria-hidden="true"
       />
       <div className="relative bg-canvas px-5 pb-20 pt-4 sm:px-8 lg:pb-28">

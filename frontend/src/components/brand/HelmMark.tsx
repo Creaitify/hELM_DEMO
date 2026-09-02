@@ -36,7 +36,7 @@ export function HelmMark({
           : 'currentColor';
   // The bearing is the one decisive stroke in the mark, so on the rail it is
   // the one place the accent belongs.
-  const bearing = tone === 'dark' ? '#A9BDFF' : tone === 'rail' ? 'var(--rail-accent)' : 'var(--helm-500)';
+  const bearing = tone === 'dark' ? 'var(--night-accent)' : tone === 'rail' ? 'var(--rail-accent)' : 'var(--helm-500)';
 
   return (
     <svg

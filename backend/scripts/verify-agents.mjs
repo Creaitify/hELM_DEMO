@@ -12,10 +12,10 @@
  * fleet works.
  *
  *   node scripts/verify-agents.mjs
- *   HELM_API=http://localhost:8000 HELM_APP=http://localhost:3000 node scripts/verify-agents.mjs
+ *   HELM_API=http://localhost:8100 HELM_APP=http://localhost:3000 node scripts/verify-agents.mjs
  */
 
-const API = process.env.HELM_API ?? 'http://localhost:8000';
+const API = process.env.HELM_API ?? 'http://localhost:8100';
 const APP = process.env.HELM_APP ?? 'http://localhost:3000';
 const WORKSPACE = process.env.HELM_WORKSPACE ?? 'northstar-group';
 

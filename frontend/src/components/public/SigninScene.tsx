@@ -26,7 +26,7 @@ export function SigninScene() {
               key={path.d}
               d={path.d}
               fill="none"
-              stroke="rgba(167,174,192,.34)"
+              stroke="rgba(164,192,189,.34)"
               strokeWidth={1}
               vectorEffect="non-scaling-stroke"
               className="draw-line"
@@ -35,7 +35,7 @@ export function SigninScene() {
           ))}
           <g className="packet-layer">
             {['M46,10 C66,10 62,50 78,50', 'M46,62 C66,62 66,50 78,50'].map((path, index) => (
-              <circle key={path} r={0.9} fill="#A9BDFF" opacity={0}>
+              <circle key={path} r={0.9} fill="var(--night-accent)" opacity={0}>
                 <animateMotion dur="2.1s" begin={`${0.9 + index * 0.4}s`} repeatCount="2" path={path} fill="freeze" />
                 <animate
                   attributeName="opacity"
@@ -70,8 +70,8 @@ export function SigninScene() {
         ))}
 
         <div className="anim-rise act-2 absolute right-0 top-1/2 w-[42%] -translate-y-1/2">
-          <div className="rounded-card border border-[rgba(124,91,255,.32)] bg-night-800/80 p-4">
-            <p className="mono text-[10px] uppercase tracking-[0.12em] text-[#B8A7FF]">Workspace</p>
+          <div className="rounded-card border border-[rgba(23,140,138,.32)] bg-night-800/80 p-4">
+            <p className="mono text-[10px] uppercase tracking-[0.12em] text-[#6BB3AD]">Workspace</p>
             <p className="mt-1.5 text-[16px] font-semibold leading-tight text-night-ink">
               {signinDemo.workspaceLabel}
             </p>

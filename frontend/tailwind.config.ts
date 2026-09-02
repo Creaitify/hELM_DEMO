@@ -15,9 +15,12 @@ const config: Config = {
           800: 'var(--night-800)',
           700: 'var(--night-700)',
           line: 'var(--night-line)',
+          'line-strong': 'var(--night-line-strong)',
           ink: 'var(--night-ink)',
           muted: 'var(--night-muted)',
           faint: 'var(--night-faint)',
+          accent: 'var(--night-accent)',
+          'accent-soft': 'var(--night-accent-soft)',
         },
         canvas: 'var(--canvas)',
         rail: {
@@ -54,10 +57,23 @@ const config: Config = {
           700: 'var(--helm-700)',
         },
         iris: { 500: 'var(--iris-500)' },
+        /* The measurement accent. Data is drawn in this; attention is amber. */
+        teal: {
+          800: 'var(--teal-800)',
+          700: 'var(--teal-700)',
+          600: 'var(--teal-600)',
+          500: 'var(--teal-500)',
+          300: 'var(--teal-300)',
+          200: 'var(--teal-200)',
+          soft: 'var(--teal-soft)',
+          line: 'var(--teal-line)',
+        },
         action: {
           200: 'var(--action-200)',
           400: 'var(--action-400)',
           ink: 'var(--action-ink)',
+          /* The accent burnt down far enough to carry text on paper. */
+          deep: 'var(--accent-ink)',
         },
         good: { DEFAULT: 'var(--good)', soft: 'var(--good-soft)' },
         warn: { DEFAULT: 'var(--warn)', soft: 'var(--warn-soft)' },
@@ -71,7 +87,8 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
-        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-serif)', 'Georgia', 'serif'],
+        display: ['var(--font-display)', 'Georgia', 'serif'],
       },
       fontSize: {
         micro: ['11px', { lineHeight: '14px', letterSpacing: '0.08em' }],
@@ -81,8 +98,6 @@ const config: Config = {
         body: ['16px', { lineHeight: '25px' }],
         'body-lg': ['18px', { lineHeight: '29px' }],
         'body-xl': ['20px', { lineHeight: '32px' }],
-        section: ['20px', { lineHeight: '26px', letterSpacing: '-0.01em' }],
-        page: ['30px', { lineHeight: '36px', letterSpacing: '-0.022em' }],
       },
       spacing: {
         '4.5': '18px',
@@ -105,14 +120,17 @@ const config: Config = {
         shell: '1320px',
       },
       boxShadow: {
-        lift: '0 1px 2px rgba(16,19,28,.045), 0 14px 34px -14px rgba(16,19,28,.16)',
-        'lift-lg': '0 2px 4px rgba(16,19,28,.05), 0 30px 66px -22px rgba(16,19,28,.24)',
+        lift: '0 1px 2px rgba(26,26,23,.05), 0 14px 34px -14px rgba(26,26,23,.16)',
+        'lift-lg': '0 2px 4px rgba(26,26,23,.06), 0 30px 66px -22px rgba(26,26,23,.24)',
+        console: '0 4px 10px rgba(26,26,23,.07), 0 40px 90px -28px rgba(26,26,23,.30)',
         'lift-dark': '0 24px 64px -24px rgba(0,0,0,.72)',
         focus: '0 0 0 3px var(--focus-ring)',
       },
       transitionTimingFunction: {
         out: 'var(--ease-out)',
         standard: 'var(--ease-standard)',
+        entrance: 'var(--ease-entrance)',
+        exit: 'var(--ease-exit)',
       },
       screens: {
         xs: '390px',

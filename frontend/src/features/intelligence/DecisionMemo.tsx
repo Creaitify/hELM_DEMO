@@ -12,7 +12,7 @@ import { SectionHeading } from '@/components/primitives/States';
 import { IconCheck, IconDownload, IconShare } from '@/components/icons';
 import { DownloadMenu } from './DownloadMenu';
 import { formatClock, formatRelative } from '@/lib/format';
-import { findingTrend } from '@/lib/metrics';
+import { findingTrends } from '@/lib/metrics';
 import { routes } from '@/lib/routes';
 import { api, describeError } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -178,7 +178,7 @@ export function DecisionMemo({
                 finding={finding}
                 workspaceSlug={workspaceSlug}
                 accountNames={accountsFor(finding)}
-                trend={findingTrend(finding, evidence)}
+                trends={findingTrends(finding, evidence)}
                 onOpenEvidence={(id) => setOpenEvidenceId(id)}
                 investigateHref={routes.run(workspaceSlug, run.id)}
               />

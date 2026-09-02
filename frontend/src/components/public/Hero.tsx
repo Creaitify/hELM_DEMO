@@ -64,7 +64,7 @@ export function Hero() {
             <h1 className="pub-display anim-rise act-1 mt-5 text-night-ink">
               See what moved.
               <br />
-              <span className="text-[#C7D2F5]">Know what to move next.</span>
+              <span className="text-[#9EC9C5]">Know what to move next.</span>
             </h1>
 
             <p className="pub-lede anim-rise act-1 mt-6 max-w-[42ch] text-pretty">
@@ -92,7 +92,7 @@ export function Hero() {
               </p>
               <Link
                 href="#product"
-                className="mono mt-3 inline-flex items-center gap-1.5 text-[11.5px] uppercase tracking-[0.1em] text-[#A9BDFF] transition-colors hover:text-night-ink"
+                className="mono mt-3 inline-flex items-center gap-1.5 text-[11.5px] uppercase tracking-[0.1em] text-night-accent transition-colors hover:text-night-ink"
               >
                 Follow the trail
                 <IconArrowRight size={14} />

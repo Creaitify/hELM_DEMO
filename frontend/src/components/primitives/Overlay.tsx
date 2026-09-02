@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/cn';
+import { useScrollLock } from '@/lib/scroll-lock';
 import { IconButton } from './Button';
 import { IconClose } from '@/components/icons';
 
@@ -17,15 +18,13 @@ function useOverlayBehaviour(open: boolean, onClose: () => void, closeOnEscape: 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
+  // Counted, so a drawer opened over a dialog cannot strand the page locked.
+  useScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
 
     openerRef.current = document.activeElement as HTMLElement | null;
-
-    const { overflow, paddingRight } = document.body.style;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = 'hidden';
-    if (scrollbar > 0) document.body.style.paddingRight = `${scrollbar}px`;
 
     const first = containerRef.current?.querySelector<HTMLElement>(FOCUSABLE);
     (first ?? containerRef.current)?.focus();
@@ -55,8 +54,6 @@ function useOverlayBehaviour(open: boolean, onClose: () => void, closeOnEscape: 
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
-      document.body.style.overflow = overflow;
-      document.body.style.paddingRight = paddingRight;
       openerRef.current?.focus?.();
     };
   }, [open, onClose, closeOnEscape]);

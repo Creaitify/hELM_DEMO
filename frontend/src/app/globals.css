@@ -16,8 +16,31 @@
     scroll-behavior: smooth;
   }
 
+  /*
+    Grain.
+
+    A flat fill is a background; a fill with tooth is stock. The texture is a
+    single tiled SVG of fractal noise, baked faint into the tile itself and
+    layered over the canvas colour.
+
+    It is a background layer on the body rather than an overlay element, and
+    that is not a stylistic preference. The first version was a full-viewport
+    `position: fixed` pseudo-element sitting behind the content at z-index -1.
+    It looked identical and it broke the page: the fixed layer covering the
+    viewport stopped the document scrolling at all, and left the compositor
+    painting nothing but canvas. `pointer-events: none` does not save you —
+    the layer is the problem, not the hit testing. A background needs no
+    element, cannot intercept anything, and tiles down the whole page.
+
+    Scrolling with the content is also the truer behaviour: paper grain
+    belongs to the sheet, not to the window you are looking through.
+
+    It is deliberately faint. If you can see it as noise it is too strong; it
+    should only be visible as the absence of flatness.
+  */
   body {
-    background: var(--canvas);
+    background-color: var(--canvas);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.022'/%3E%3C/svg%3E");
     color: var(--ink-950);
     font-family: var(--font-sans), system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-size: 15px;
@@ -36,14 +59,14 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--helm-500);
+    outline: 2px solid var(--accent-ink);
     outline-offset: 2px;
     border-radius: 4px;
   }
 
   .on-night :focus-visible,
   .on-night :focus-visible * {
-    outline-color: #a9bdff;
+    outline-color: var(--rail-accent);
   }
 
   ::selection {
@@ -52,7 +75,7 @@
   }
 
   .on-night ::selection {
-    background: rgba(124, 91, 255, 0.36);
+    background: rgba(242, 173, 46, 0.34);
     color: #fff;
   }
 
@@ -88,25 +111,70 @@
   }
 
   .pub-display {
-    font-family: var(--font-display), system-ui, sans-serif;
+    font-family: var(--font-display), Georgia, serif;
     font-size: clamp(44px, 6.4vw, 92px);
     line-height: 0.98;
     letter-spacing: -0.035em;
-    font-weight: 600;
+    font-weight: 400;
   }
 
   .pub-section-title {
-    font-family: var(--font-display), system-ui, sans-serif;
+    font-family: var(--font-display), Georgia, serif;
     font-size: clamp(32px, 3.9vw, 60px);
     line-height: 1.03;
     letter-spacing: -0.03em;
-    font-weight: 600;
+    font-weight: 400;
   }
 
   .pub-lede {
     font-size: clamp(17px, 1.35vw, 20px);
     line-height: 1.55;
     color: var(--night-muted);
+  }
+
+  /* ---------- Editorial type ----------
+     The product's voice is a serif display over a sans working text over a
+     mono label. Three registers, each with a job:
+
+       display / page  — the name of the thing you are looking at
+       section         — the name of a part of it
+       micro-label     — what a number is called
+
+     The serif is set at 400 and allowed to be large. A serif crushed to 20px
+     semibold is just a sans with extra steps; the whole point is the scale
+     contrast against 13px mono labels sitting under it. */
+  .text-display {
+    font-family: var(--font-display), Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(38px, 4.2vw, 54px);
+    line-height: 1.02;
+    letter-spacing: -0.022em;
+  }
+
+  .text-page {
+    font-family: var(--font-display), Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(31px, 3vw, 40px);
+    line-height: 1.06;
+    letter-spacing: -0.02em;
+  }
+
+  .text-section {
+    font-family: var(--font-display), Georgia, serif;
+    font-weight: 400;
+    font-size: 23px;
+    line-height: 1.16;
+    letter-spacing: -0.015em;
+  }
+
+  /* Serif italic is the product's aside voice — a caption, a qualifier, the
+     line under a heading that says what you are actually looking at. */
+  .text-aside {
+    font-family: var(--font-display), Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.005em;
+    color: var(--ink-500);
   }
 
   /* ---------- Product surfaces: four kinds, not one card ---------- */
@@ -122,18 +190,19 @@
     border: 1px solid var(--line);
     border-radius: 14px;
   }
+  /* The one raised surface. Tinted to the palette's ink so the sheet reads as
+     resting on the page rather than cut out and pasted over it. */
   .s-lift {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(16, 19, 28, 0.045), 0 14px 34px -14px rgba(16, 19, 28, 0.16);
+    box-shadow: 0 1px 2px rgba(26, 26, 23, 0.05), 0 14px 34px -14px rgba(26, 26, 23, 0.16);
   }
 
-  /* The rail's ground is the same colour as the default focus outline, so the
-     ring would vanish exactly where keyboard navigation needs it most. Rail
-     controls opt into an accent ring — the job the accent already has
-     everywhere else. It is opt-in per element rather than a descendant rule,
-     because the popovers the rail opens are its children and stay on paper. */
+  /* The rail's ground is dark, so the page's ink-coloured focus ring would
+     vanish exactly where keyboard navigation needs it most. Rail controls opt
+     into the amber ring instead — per element, not by descendant rule, because
+     the popovers the rail opens are its children and belong to the page. */
   .rail-focus:focus-visible {
     outline-color: var(--rail-accent);
   }
@@ -148,11 +217,25 @@
 
   .micro-label {
     font-family: var(--font-mono), ui-monospace, monospace;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 500;
-    letter-spacing: 0.075em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--ink-400);
+    color: var(--ink-500);
+  }
+
+  /*
+    A rule with a weight to it.
+
+    Used above a section title the way a printed page divides itself: the line
+    is the structure, the whitespace under it is the breath. Cheaper and far
+    more editorial than wrapping every group in another bordered card.
+  */
+  .rule-heavy {
+    border-top: 2px solid var(--ink-950);
+  }
+  .rule-accent {
+    border-top: 2px solid var(--action-400);
   }
 
   .skip-link {
@@ -190,6 +273,29 @@
     border-radius: 8px;
   }
   .thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
+
+  /*
+    Ask-about-this.
+
+    Any figure on the page can be interrogated. The affordance has to be
+    discoverable without turning every number into a button — so it lives in
+    the parent's hover state, holds its own space so nothing reflows when it
+    appears, and stays permanently visible to keyboard focus.
+  */
+  .ask-host { position: relative; }
+  .ask-trigger {
+    opacity: 0;
+    transition: opacity var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+  }
+  .ask-host:hover .ask-trigger,
+  .ask-host:focus-within .ask-trigger,
+  .ask-trigger:focus-visible {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    /* No hover to reveal it, so it is simply always there. */
+    .ask-trigger { opacity: 1; }
+  }
 }
 
 @layer utilities {
@@ -199,6 +305,13 @@
   .min-dvh-screen { min-height: 100dvh; }
   .safe-b { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
   .safe-t { padding-top: max(env(safe-area-inset-top), 0px); }
+
+  /* Named view-transition participants. The furniture keeps its identity
+     across a navigation so the browser holds it still instead of
+     cross-fading it against itself. */
+  .vt-rail    { view-transition-name: helm-rail; }
+  .vt-scope   { view-transition-name: helm-scope; }
+  .vt-content { view-transition-name: helm-content; }
 }
 
 @media (forced-colors: active) {

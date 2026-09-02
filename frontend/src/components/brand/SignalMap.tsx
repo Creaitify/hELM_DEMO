@@ -46,7 +46,7 @@ export function SignalMap({ className }: { className?: string }) {
               key={connection.d}
               d={connection.d}
               fill="none"
-              stroke={connection.muted ? 'rgba(255,255,255,.16)' : 'rgba(167,174,192,.42)'}
+              stroke={connection.muted ? 'rgba(255,255,255,.16)' : 'rgba(164,192,189,.42)'}
               strokeWidth={1.1}
               strokeDasharray={connection.muted ? '2 2.5' : undefined}
               vectorEffect="non-scaling-stroke"
@@ -61,7 +61,7 @@ export function SignalMap({ className }: { className?: string }) {
               key={segment.d}
               d={segment.d}
               fill="none"
-              stroke="rgba(124,91,255,.62)"
+              stroke="rgba(23,140,138,.62)"
               strokeWidth={1.4}
               vectorEffect="non-scaling-stroke"
               className="draw-line"
@@ -72,7 +72,7 @@ export function SignalMap({ className }: { className?: string }) {
           {/* Measured data travelling the spine. Two passes, then still. */}
           <g className="packet-layer">
             {[...CONNECTIONS.slice(0, 3), ...SPINE].map((path, index) => (
-              <circle key={`packet-${path.d}`} r={0.9} fill="#A9BDFF" opacity={0}>
+              <circle key={`packet-${path.d}`} r={0.9} fill="var(--night-accent)" opacity={0}>
                 <animateMotion
                   dur="1.9s"
                   begin={`${0.8 + index * 0.16}s`}
@@ -138,12 +138,12 @@ export function SignalMap({ className }: { className?: string }) {
 
         {/* Junction dots */}
         <span
-          className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A9BDFF]"
+          className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-night-accent"
           style={{ left: '52%', top: '28%' }}
           aria-hidden="true"
         />
         <span
-          className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A9BDFF]"
+          className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-night-accent"
           style={{ left: '52%', top: '72%' }}
           aria-hidden="true"
         />
@@ -153,8 +153,8 @@ export function SignalMap({ className }: { className?: string }) {
           className="anim-rise act-3 absolute w-[36%] -translate-y-1/2"
           style={{ left: '64%', top: '50%' }}
         >
-          <div className="rounded-card border border-[rgba(124,91,255,.34)] bg-night-800/80 p-3.5 backdrop-blur-sm">
-            <p className="mono text-[10.5px] uppercase tracking-[0.1em] text-[#B8A7FF]">
+          <div className="rounded-card border border-[rgba(23,140,138,.34)] bg-night-800/80 p-3.5 backdrop-blur-sm">
+            <p className="mono text-[10.5px] uppercase tracking-[0.1em] text-[#6BB3AD]">
               {demo.core.label}
             </p>
             <p className="mt-2 text-[26px] font-semibold leading-none text-night-ink tnum">2,268</p>
@@ -172,7 +172,7 @@ export function SignalMap({ className }: { className?: string }) {
       <div className="sm:hidden">
         <ol className="relative space-y-2.5 pl-6">
           <span
-            className="absolute bottom-4 left-[7px] top-3 w-px bg-gradient-to-b from-[rgba(167,174,192,.4)] via-[rgba(124,91,255,.5)] to-[rgba(124,91,255,.2)]"
+            className="absolute bottom-4 left-[7px] top-3 w-px bg-gradient-to-b from-[rgba(164,192,189,.4)] via-[rgba(23,140,138,.5)] to-[rgba(23,140,138,.2)]"
             aria-hidden="true"
           />
           {demo.nodes.map((node, index) => (
@@ -201,12 +201,12 @@ export function SignalMap({ className }: { className?: string }) {
           ))}
           <li className="relative pt-1">
             <span
-              className="absolute -left-6 top-5 h-[9px] w-[9px] rounded-full bg-[#A9BDFF]"
+              className="absolute -left-6 top-5 h-[9px] w-[9px] rounded-full bg-night-accent"
               aria-hidden="true"
             />
-            <div className="rounded-card border border-[rgba(124,91,255,.34)] bg-night-800/80 p-3.5">
+            <div className="rounded-card border border-[rgba(23,140,138,.34)] bg-night-800/80 p-3.5">
               <div className="flex items-baseline justify-between gap-3">
-                <p className="mono text-[10.5px] uppercase tracking-[0.1em] text-[#B8A7FF]">
+                <p className="mono text-[10.5px] uppercase tracking-[0.1em] text-[#6BB3AD]">
                   {demo.core.label}
                 </p>
                 <p className="text-[24px] font-semibold leading-none text-night-ink tnum">2,268</p>

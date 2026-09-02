@@ -37,11 +37,28 @@ export function AccountScopeCommand({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const current = scopes.find((scope) => scope.id === currentScopeId) ?? scopes[0];
+  /**
+   * A workspace with nothing connected has no scope to be in.
+   *
+   * `scopes[0]` is undefined there, and every read of `current` below threw —
+   * taking the whole shell down with it, because this control renders in the
+   * bar above every screen. A workspace someone has just created is the most
+   * ordinary state there is, so the empty case is a label rather than a crash:
+   * there is nothing to switch between until an account is connected, and the
+   * control says so instead of offering a picker over an empty list.
+   */
+  const current = scopes.find((scope) => scope.id === currentScopeId) ?? scopes[0] ?? null;
+  /*
+   * Memoised because the empty fallback is a fresh array on every render, and
+   * `dirty` below compares against it — without this the comparison re-runs on
+   * every keystroke in the search field for a value that has not changed.
+   */
+  const currentAccountIds = useMemo(() => current?.accountIds ?? [], [current]);
+  const currentLabel = current?.label ?? 'No accounts connected';
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [draft, setDraft] = useState<string[]>(current.accountIds);
+  const [draft, setDraft] = useState<string[]>(currentAccountIds);
   const [committing, setCommitting] = useState<string | null>(null);
 
   const googleAccounts = accounts.filter((account) => account.provider === 'google_ads');
@@ -59,9 +76,9 @@ export function AccountScopeCommand({
 
   const dirty = useMemo(() => {
     const a = [...draft].sort().join('|');
-    const b = [...current.accountIds].sort().join('|');
+    const b = [...currentAccountIds].sort().join('|');
     return a !== b;
-  }, [draft, current.accountIds]);
+  }, [draft, currentAccountIds]);
 
   /** The frontend preflights the obvious cases; the backend stays authoritative. */
   const compatibility = useMemo(() => {
@@ -75,7 +92,7 @@ export function AccountScopeCommand({
   }, [accounts, draft]);
 
   const openCommand = () => {
-    setDraft(current.accountIds);
+    setDraft(currentAccountIds);
     setQuery('');
     setOpen(true);
   };
@@ -88,7 +105,7 @@ export function AccountScopeCommand({
 
   const applyScope = (ids: string[]) => {
     const nextScope = resolveScopeId(ids);
-    setCommitting(current.label);
+    setCommitting(currentLabel);
     const params = new URLSearchParams(searchParams.toString());
     params.set('scope', nextScope);
     setOpen(false);
@@ -102,9 +119,21 @@ export function AccountScopeCommand({
 
   const draftAccounts = accounts.filter((account) => draft.includes(account.id));
   const providersInDraft = new Set(draftAccounts.map((account) => account.provider));
-  const currentAccounts = accounts.filter((account) => current.accountIds.includes(account.id));
+  const currentAccounts = accounts.filter((account) => currentAccountIds.includes(account.id));
   const currentProviders = new Set(currentAccounts.map((account) => account.provider));
   const attention = currentAccounts.filter((account) => account.health.state !== 'fresh').length;
+
+  /**
+   * The currency the scope actually reports in, read from the accounts in it.
+   *
+   * This line said INR for every workspace regardless of what its accounts
+   * were denominated in — so a GBP workspace announced Indian rupees directly
+   * above figures that were pounds. Scopes that mix currencies cannot be
+   * blended at all (the check above refuses them), so a single name is always
+   * the right answer when there is one.
+   */
+  const currencies = [...new Set(currentAccounts.map((account) => account.currency))];
+  const currencyLabel = currencies.length === 1 ? ` · ${currencies[0]}` : '';
 
   return (
     <>
@@ -124,10 +153,10 @@ export function AccountScopeCommand({
         </span>
         <span className="min-w-0">
           <span className="block truncate text-[13.5px] font-medium leading-tight text-ink-950">
-            {committing ? `Updating from ${committing}…` : current.label}
+            {committing ? `Updating from ${committing}…` : currentLabel}
           </span>
           <span className="mono block truncate text-[10.5px] leading-tight text-ink-400">
-            {current.accountIds.length} accounts · INR
+            {currentAccountIds.length} accounts{currencyLabel}
             {attention > 0 ? ` · ${attention} needs attention` : ''}
           </span>
         </span>

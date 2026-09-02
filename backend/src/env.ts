@@ -106,6 +106,15 @@ export const env = {
    * that already run one; with neither configured the in-process store keeps
    * the product demonstrable.
    */
+  /**
+   * Forces the decision graph to stay in this process when set to `memory`.
+   *
+   * Overrides DATABASE_URL and NEO4J_URI rather than depending on their
+   * absence, so a self-contained deployment cannot be quietly re-pointed at a
+   * database the host injects. Leave it unset for the normal fallback order.
+   */
+  graphStore: str('GRAPH_STORE').toLowerCase(),
+
   database: {
     url: firstOf(['DATABASE_URL', 'POSTGRES_URL']),
     get enabled() {

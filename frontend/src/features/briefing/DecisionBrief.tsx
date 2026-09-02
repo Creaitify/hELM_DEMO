@@ -7,7 +7,7 @@ import { EvidenceDrawer } from '@/components/data/EvidenceDrawer';
 import { SectionHeading } from '@/components/primitives/States';
 import { StatusBadge } from '@/components/primitives/Status';
 import { CampaignTag } from '@/components/data/CampaignTag';
-import { findingTrend } from '@/lib/metrics';
+import { findingTrends } from '@/lib/metrics';
 import { routes } from '@/lib/routes';
 
 type DecisionState = 'proposed' | 'approved' | 'revision_requested' | 'dismissed' | 'saved';
@@ -102,7 +102,7 @@ export function DecisionBrief({
     workspaceSlug,
     accountNames: accountsFor(finding),
     campaignNames: campaignsFor(finding),
-    trend: findingTrend(finding, evidence),
+    trends: findingTrends(finding, evidence, campaigns),
     onOpenEvidence: (id: string) => setOpenEvidenceId(id),
     investigateHref: investigateHref(finding),
   });

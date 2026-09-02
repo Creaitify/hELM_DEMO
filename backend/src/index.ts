@@ -59,17 +59,6 @@ async function main() {
   await initGraph((message) => app.log.info(message));
   await seedGraph((message) => app.log.info(message));
 
-  // Findings written before the analyst derived its own figures carry an empty
-  // metric strip and, in some cases, an exposure whose low and high are the
-  // same wrong number. Recomputing them at boot is idempotent and means nobody
-  // has to know a repair was ever needed.
-  await repairStoredFindings((message) => app.log.info(message));
-
-  // A key in .env is not the same as a key that works. Find out at boot.
-  const reasoning = await verifyAnthropic();
-  setReasoningLive(reasoning.state === 'live');
-  app.log[reasoning.state === 'rejected' ? 'warn' : 'info'](`reasoning: ${reasoning.detail}`);
-
   await app.register(authRoutes);
   await app.register(workspaceRoutes);
   await app.register(analyticsRoutes);
@@ -90,6 +79,35 @@ async function main() {
 
   await app.listen({ port: env.port, host: env.host });
   app.log.info(`HELM API listening on ${env.apiUrl} — frontend origin ${env.siteUrl}`);
+
+  /*
+   * Everything past this point is startup work that nothing needs answered
+   * before the first request, so it runs after the port is open rather than
+   * in front of it.
+   *
+   * The reasoning probe is the reason this matters. It is a live call to
+   * Anthropic with no deadline: while it blocked `listen`, a slow or
+   * unreachable provider meant the API never started at all, and the whole
+   * product showed "API unreachable" for a fault in one optional capability.
+   * Reasoning is assumed live until the probe says otherwise, which is the
+   * same assumption every request already makes.
+   */
+  void (async () => {
+    try {
+      // Findings written before the analyst derived its own figures carry an
+      // empty metric strip and, in some cases, an exposure whose low and high
+      // are the same wrong number. Recomputing them is idempotent and means
+      // nobody has to know a repair was ever needed.
+      await repairStoredFindings((message) => app.log.info(message));
+
+      // A key in .env is not the same as a key that works. Find out at boot.
+      const reasoning = await verifyAnthropic();
+      setReasoningLive(reasoning.state === 'live');
+      app.log[reasoning.state === 'rejected' ? 'warn' : 'info'](`reasoning: ${reasoning.detail}`);
+    } catch (error) {
+      app.log.warn(`startup checks did not complete: ${String(error)}`);
+    }
+  })();
 }
 
 async function shutdown(signal: string) {

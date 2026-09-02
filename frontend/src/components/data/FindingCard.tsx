@@ -30,7 +30,7 @@ export function FindingCard({
   workspaceSlug,
   onOpenEvidence,
   investigateHref,
-  trend,
+  trends,
   emphasis = false,
 }: {
   finding: Finding;
@@ -41,8 +41,8 @@ export function FindingCard({
   workspaceSlug: string;
   onOpenEvidence: (evidenceId: string) => void;
   investigateHref: string;
-  /** The leading metric across the window, taken from the evidence behind it. */
-  trend?: number[];
+  /** A series per figure, where one exists. Keyed by metric, not by position. */
+  trends?: Partial<Record<MetricValue['key'], number[]>>;
   emphasis?: boolean;
 }) {
   const identity = leadCampaignIdentity(finding.affectedCampaignIds);
@@ -93,7 +93,7 @@ export function FindingCard({
       <MetricStrip
         metrics={finding.metricHighlights}
         exposure={finding.exposure}
-        trend={trend}
+        trends={trends}
         trendColor={identity?.mark}
       />
 
@@ -184,25 +184,26 @@ export function FindingCard({
 function MetricStrip({
   metrics,
   exposure,
-  trend,
+  trends,
   trendColor,
 }: {
   metrics: MetricValue[];
   exposure?: Finding['exposure'];
-  trend?: number[];
+  trends?: Partial<Record<MetricValue['key'], number[]>>;
   trendColor?: string;
 }) {
   if (metrics.length === 0 && !exposure) return null;
 
   return (
     <dl className="mt-2.5 flex flex-wrap items-stretch gap-x-5 gap-y-2.5">
-      {metrics.map((metric, index) => (
+      {metrics.map((metric) => (
         <div key={metric.key} className="min-w-[92px] text-right">
           <dt className="micro-label">{metricLabel(metric.key, true)}</dt>
           <dd className="mt-1 flex items-center justify-end gap-2">
-            {index === 0 && trend && trend.length > 1 ? (
+            {/* Each figure draws its own series, or none. */}
+            {(trends?.[metric.key]?.length ?? 0) > 1 ? (
               <Sparkline
-                values={trend}
+                values={trends![metric.key]!}
                 width={52}
                 height={16}
                 color={trendColor ?? 'var(--line-strong)'}

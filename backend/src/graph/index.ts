@@ -23,6 +23,25 @@ let status: GraphStatus = { kind: 'memory', ok: true, detail: 'not started' };
 export async function initGraph(log: (message: string) => void): Promise<GraphStore> {
   if (store) return store;
 
+  /*
+   * An explicit request to keep the data in this process.
+   *
+   * Leaving DATABASE_URL blank already lands here, but that is an absence
+   * rather than a decision, and it is not one a deployment can state: a
+   * platform that injects a database URL of its own would silently take a
+   * demo somewhere it was never meant to write. GRAPH_STORE=memory says the
+   * intent out loud and wins over anything else configured, so a self-contained
+   * build stays self-contained wherever it is deployed.
+   *
+   * Nothing is removed by setting it. Both database drivers stay wired and
+   * come back the moment it is unset.
+   */
+  if (env.graphStore === 'memory') {
+    const detail = 'In-process graph store (GRAPH_STORE=memory)';
+    log(detail);
+    return fallback(detail, true);
+  }
+
   if (env.database.enabled) {
     const neon = new PostgresGraphStore();
     try {

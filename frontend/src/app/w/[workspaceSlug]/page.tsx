@@ -1,17 +1,15 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import type { TimelineEvent } from '@/contracts';
+import type { MetricKey, TimelineEvent } from '@/contracts';
 import { PageShell } from '@/components/shell/AppShell';
 import { WorkspacePlaceholder, isPopulated } from '@/features/briefing/WorkspacePlaceholder';
 import { Scoreline } from '@/components/data/Scoreline';
 import { RankedBars, ShareBar } from '@/components/data/Charts';
-import { InlineNotice, SectionHeading } from '@/components/primitives/States';
-import { StatusBadge } from '@/components/primitives/Status';
-import { Disclosure } from '@/components/primitives/Controls';
+import { InlineNotice } from '@/components/primitives/States';
 import { DecisionAnalytics } from '@/features/briefing/DecisionAnalytics';
 import { DecisionBrief } from '@/features/briefing/DecisionBrief';
+import { SinceLastLook } from '@/features/briefing/SinceLastLook';
 import { PerformanceMovement } from '@/features/briefing/PerformanceMovement';
-import { IconArrowRight, IconShare, ProviderMark } from '@/components/icons';
+import { IconShare, ProviderMark } from '@/components/icons';
 import { LinkButton } from '@/components/primitives/Button';
 import { DownloadMenu } from '@/features/intelligence/DownloadMenu';
 import { routes } from '@/lib/routes';
@@ -31,7 +29,6 @@ import {
   decisions as sampleDecisions,
   evidence as sampleEvidence,
   findings as sampleFindings,
-  partialNotice,
   recommendations,
   runs as sampleRuns,
   scoreline as sampleScoreline,
@@ -103,6 +100,18 @@ export default async function BriefingPage({
   const moved = timeline.filter(movedANumber);
   const rest = timeline.filter((event) => !movedANumber(event));
 
+  /*
+   * The shape of each headline metric, for the scoreline.
+   *
+   * The same series the movement chart is drawn from, reduced to bare values.
+   * It costs nothing extra — the page already has this data in hand — and it
+   * is what let five explanatory paragraphs come out of the row above.
+   */
+  const spark: Partial<Record<MetricKey, (number | null)[]>> = {};
+  for (const [key, series] of Object.entries(seriesByMetric)) {
+    if (series) spark[key as MetricKey] = series.points.map((point) => point.value);
+  }
+
   const budgetOpportunities = blendedCampaigns
     .filter((campaign) => (campaign.impressionShareLostToBudget ?? 0) > 0.03)
     .sort((a, b) => (b.impressionShareLostToBudget ?? 0) - (a.impressionShareLostToBudget ?? 0));
@@ -152,21 +161,20 @@ export default async function BriefingPage({
       <div className="space-y-9">
         <Scoreline
           metrics={scoreline}
+          spark={spark}
           unavailable={{ label: unavailableMetric.label, reason: unavailableMetric.reason }}
-          comparisonLabel={`${formatDateRange(COMPARE_START, COMPARE_END)} (previous 30 days)`}
+          comparisonLabel={formatDateRange(COMPARE_START, COMPARE_END)}
         />
 
-        <InlineNotice
-          compact
-          tone="warn"
-          title={partialNotice.title}
-          action={
-            <LinkButton href={routes.connections(workspaceSlug)} variant="neutral" size="compact">
-              Open connections
+        {/* The caveat that changes how every figure above should be read. One
+            line: which accounts are in, and the way to fix it. */}
+        <InlineNotice compact tone="warn" title="3 of 4 accounts">
+          <span className="flex flex-wrap items-center gap-x-2">
+            <span>Retargeting is 19h behind and excluded from every blended total.</span>
+            <LinkButton href={routes.connections(workspaceSlug)} variant="quiet" size="compact">
+              Fix sync
             </LinkButton>
-          }
-        >
-          {partialNotice.detail}
+          </span>
         </InlineNotice>
 
         {/*
@@ -176,9 +184,13 @@ export default async function BriefingPage({
           the findings are about, then read what HELM made of it.
         */}
         <section aria-labelledby="movement" className="scroll-mt-24">
-          {/* The chart states its own question and basis, so the section does
-              not need to restate them above it. */}
-          <SectionHeading id="movement" title="Performance movement" />
+          {/* The chart states its own question and basis, so the section is a
+              rule and a name — not a heading with a paragraph under it. */}
+          <div className="rule-heavy pt-4">
+            <h2 id="movement" className="text-section text-ink-950">
+              Movement
+            </h2>
+          </div>
           <div className="mt-5 space-y-5">
             <PerformanceMovement seriesByMetric={seriesByMetric} windowLabel={windowLabel} />
 
@@ -209,9 +221,9 @@ export default async function BriefingPage({
                     note: `CPA ${formatMoney(campaign.cpa, 'INR')} · ${campaign.conversions} purchases`,
                   }))}
                 />
-                {/* Kept because it states a limit of the chart, not a restatement of it. */}
-                <p className="mt-4 border-t border-line pt-3 text-[12px] leading-[18px] text-ink-400">
-                  Meta does not report a comparable figure, so only Google campaigns appear here.
+                {/* States a limit of the chart, not a restatement of it. */}
+                <p className="mono mt-4 border-t border-line pt-3 text-[10.5px] text-ink-400">
+                  Google only · Meta reports no equivalent
                 </p>
               </div>
 
@@ -232,9 +244,8 @@ export default async function BriefingPage({
                     note: `Frequency ${creative.frequency?.toFixed(1)} · ${formatMoney(creative.cpa, 'INR')} CPA`,
                   }))}
                 />
-                <p className="mt-4 border-t border-line pt-3 text-[12px] leading-[18px] text-ink-400">
-                  One asset in this ad set is a carousel and reports no video metrics, so 12% of spend is not
-                  covered.
+                <p className="mono mt-4 border-t border-line pt-3 text-[10.5px] text-ink-400">
+                  12% of spend uncovered · one carousel reports no video metrics
                 </p>
               </div>
             </div>
@@ -269,124 +280,66 @@ export default async function BriefingPage({
           runIdByFinding={runIdByFinding}
         />
 
-        {/* Since your last visit */}
-        <section aria-labelledby="since" className="scroll-mt-24">
-          <SectionHeading
-            id="since"
-            title="Since your last visit"
-            hint="The events that moved a figure above. Everything else is in the audit."
-            action={
-              <Link
-                href={routes.settings(workspaceSlug, 'audit')}
-                className="mono inline-flex items-center gap-1.5 text-[12px] text-helm-600 hover:underline"
-              >
-                Open audit
-                <IconArrowRight size={14} />
-              </Link>
-            }
-          />
-          <div className="s-panel mt-5 px-5 sm:px-6">
-            <ol className="divide-y divide-line">
-              {moved.map((event) => (
-                <TimelineRow key={event.id} event={event} />
-              ))}
-            </ol>
-            {rest.length > 0 ? (
-              <Disclosure
-                summary={`${rest.length} more events that changed nothing above`}
-                className="border-t border-line"
-              >
-                <ol className="divide-y divide-line">
-                  {rest.map((event) => (
-                    <TimelineRow key={event.id} event={event} />
-                  ))}
-                </ol>
-              </Disclosure>
-            ) : null}
-          </div>
-        </section>
+        <SinceLastLook
+          workspaceSlug={workspaceSlug}
+          moved={moved}
+          rest={rest}
+          nowIso={NOW_ISO}
+        />
 
-        {/* Data basis */}
+        {/*
+          The basis, as a strip rather than an essay.
+
+          This was a heading, a sub-heading, three bullet sentences and a
+          disclosure containing a definition list per account — roughly a
+          screen of text to say which accounts are in and which are out. It is
+          reference material: it must be on the page and findable, and it must
+          not compete with the findings above it. One dense mono row per
+          account does the whole job.
+        */}
         <section aria-labelledby="basis" className="scroll-mt-24">
-          <SectionHeading
-            id="basis"
-            title="What these numbers are built on"
-            hint="Every blended figure on this page uses exactly this basis."
-          />
-          {/* Exclusions stay in the open: they are the part that changes what a
-              reader should conclude. The per-account detail is reference. */}
-          <ul className="mt-4 space-y-1.5">
-            {[
-              'Northstar US / Search is separated: USD and an America/New_York reporting day.',
-              'Northstar India / Retargeting is excluded from totals while its sync is 19 hours behind.',
-              'The current partial day (24 August) is excluded from every figure.',
-            ].map((line) => (
-              <li key={line} className="flex gap-2 text-[12.5px] leading-[19px] text-ink-500">
-                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-400" aria-hidden="true" />
-                {line}
-              </li>
-            ))}
-          </ul>
-          <Disclosure summary={`Account detail for the ${basisAccounts.length} blended accounts`} className="mt-2">
-            <div className="s-panel-subtle grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
-              {basisAccounts.map((account) => (
-                <div key={account.id}>
-                  <p className="flex items-center gap-2 text-[13.5px] font-medium text-ink-950">
-                    <ProviderMark provider={account.provider} size={15} />
-                    {account.name}
-                  </p>
-                  <dl className="mono mt-2.5 space-y-1.5 text-[12px] text-ink-400">
-                    <div className="flex justify-between gap-3">
-                      <dt>Account</dt>
-                      <dd className="text-ink-700">{account.nativeId}</dd>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <dt>Reporting</dt>
-                      <dd className="text-ink-700">
-                        {account.currency} · {account.timeZone}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <dt>Last sync</dt>
-                      <dd className="text-ink-700">{formatRelative(account.lastSyncedAt, NOW_ISO)}</dd>
-                    </div>
-                  </dl>
-                </div>
-              ))}
-            </div>
-          </Disclosure>
+          <div className="rule-heavy flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 pt-4">
+            <h2 id="basis" className="text-section text-ink-950">
+              Basis
+            </h2>
+            <p className="mono text-[10.5px] uppercase tracking-[0.08em] text-ink-400">
+              {basisAccounts.length} blended · 1 separated · 1 excluded · today omitted
+            </p>
+          </div>
+
+          <div className="s-panel mt-5 overflow-hidden p-0">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-line bg-surface-subtle">
+                  {['Account', 'Reporting', 'Last sync'].map((heading) => (
+                    <th key={heading} className="micro-label px-4 py-2 font-medium lg:px-5">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {basisAccounts.map((account) => (
+                  <tr key={account.id} className="transition-colors hover:bg-surface-subtle">
+                    <td className="px-4 py-2.5 lg:px-5">
+                      <span className="flex items-center gap-2 text-[13.5px] text-ink-950">
+                        <ProviderMark provider={account.provider} size={14} />
+                        {account.name}
+                      </span>
+                    </td>
+                    <td className="mono px-4 py-2.5 text-[11.5px] text-ink-500 lg:px-5">
+                      {account.currency} · {account.timeZone}
+                    </td>
+                    <td className="mono px-4 py-2.5 text-[11.5px] text-ink-500 lg:px-5">
+                      {formatRelative(account.lastSyncedAt, NOW_ISO)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       </div>
     </PageShell>
-  );
-}
-
-function TimelineRow({ event }: { event: TimelineEvent }) {
-  return (
-    <li className="flex flex-wrap items-start gap-x-4 gap-y-1 py-3">
-      <span className="mono w-[104px] shrink-0 text-[11.5px] text-ink-400">
-        {formatRelative(event.at, NOW_ISO)}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="text-[14px] font-medium text-ink-950">{event.title}</span>
-          <StatusBadge
-            tone={
-              event.tone === 'good'
-                ? 'good'
-                : event.tone === 'warn'
-                  ? 'warn'
-                  : event.tone === 'bad'
-                    ? 'bad'
-                    : 'neutral'
-            }
-            className="capitalize"
-          >
-            {event.kind}
-          </StatusBadge>
-        </span>
-        <span className="mt-0.5 block text-[13px] leading-[19px] text-ink-500">{event.detail}</span>
-      </span>
-    </li>
   );
 }

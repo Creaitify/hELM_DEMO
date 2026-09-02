@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn';
 
 export function Sparkline({
   values,
-  color = 'var(--helm-500)',
+  color = 'var(--teal-600)',
   width = 84,
   height = 26,
   label,
@@ -33,6 +33,13 @@ export function Sparkline({
     })
     .join('');
 
+  // Closing the path along the baseline turns a squiggle into a quantity.
+  const last = values.length - 1;
+  const lastX = (last / last) * (width - 2) + 1;
+  const lastY = height - 2 - ((values[last] - min) / span) * (height - 4);
+  const area = `${path}L${lastX.toFixed(1)} ${height}L1 ${height}Z`;
+  const gradientId = `spark-${label.replace(/[^a-z0-9]/gi, '')}`;
+
   return (
     <svg
       width={width}
@@ -40,9 +47,18 @@ export function Sparkline({
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={label}
-      className={cn('shrink-0', className)}
+      className={cn('shrink-0 overflow-visible', className)}
     >
-      <path d={path} fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.24} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gradientId})`} stroke="none" />
+      <path d={path} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      {/* Where the series ends is the only point on a sparkline worth marking. */}
+      <circle cx={lastX} cy={lastY} r={2} fill={color} />
     </svg>
   );
 }

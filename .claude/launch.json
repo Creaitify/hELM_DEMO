@@ -4,8 +4,48 @@
     {
       "name": "helm-frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "frontend"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "frontend"
+      ],
       "port": 3000
+    },
+    {
+      "name": "helm-frontend-review",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "frontend",
+        "--",
+        "-p",
+        "3100"
+      ],
+      "port": 3100,
+      "env": {
+        "NEXT_DIST_DIR": ".next-review"
+      }
+    },
+    {
+      "name": "helm-frontend-signin-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "frontend",
+        "--",
+        "-p",
+        "3200"
+      ],
+      "port": 3200,
+      "env": {
+        "NEXT_DIST_DIR": ".next-signin",
+        "HELM_API_ORIGIN": "http://127.0.0.1:9"
+      }
     }
   ]
 }

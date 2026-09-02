@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useState, type ComponentType, type SVGProps } from 'react';
+import { useEffect, useState, type ComponentType, type SVGProps } from 'react';
 import type { Workspace } from '@/contracts';
 import { HelmMark } from '@/components/brand/HelmMark';
 import {
@@ -68,6 +68,24 @@ export function AppRail({
   const [collapsed, setCollapsed] = useState(false);
   const currentTab = searchParams.get('tab');
 
+  /*
+   * Where you just asked to go.
+   *
+   * A server-rendered tab cannot light up until its data has arrived, so every
+   * click used to be followed by a beat of nothing — the old row still lit, the
+   * new one still grey — and that beat is most of what made switching tabs feel
+   * like a drag. The rail now answers the click immediately and lets the page
+   * catch up, which is the honest order of events: you did choose, and the
+   * choice is what the rail is showing.
+   *
+   * It clears when the URL agrees, and clears on the way out so a failed or
+   * cancelled navigation cannot leave the rail lying about where you are.
+   */
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => {
+    setPending(null);
+  }, [pathname, currentTab]);
+
   const groups: RailGroup[] = [
     {
       label: null,
@@ -126,8 +144,17 @@ export function AppRail({
     return true;
   };
 
+  /**
+   * The row the rail is currently showing as chosen.
+   *
+   * While a navigation is in flight the pending row wins outright, so exactly
+   * one row is ever lit — the alternative is two lit rows mid-transition,
+   * which looks like a bug.
+   */
+  const isCurrent = (link: RailLink) => (pending ? pending === link.href : isActive(link));
+
   const renderLink = (link: RailLink) => {
-    const active = isActive(link);
+    const active = isCurrent(link);
     const Icon = link.icon;
     const href = link.href.includes('?') ? link.href : `${link.href}${query}`;
 
@@ -135,6 +162,8 @@ export function AppRail({
       <li key={link.label}>
         <Link
           href={href}
+          prefetch
+          onClick={() => setPending(link.href)}
           aria-current={active ? 'page' : undefined}
           title={collapsed ? link.label : undefined}
           className={cn(
@@ -150,8 +179,9 @@ export function AppRail({
           <span
             aria-hidden="true"
             className={cn(
-              'absolute left-0 top-1/2 h-[18px] w-[2.5px] -translate-y-1/2 rounded-r-full bg-rail-accent transition-opacity duration-[110ms]',
-              active ? 'opacity-100' : 'opacity-0',
+              'absolute left-0 top-1/2 w-[2.5px] -translate-y-1/2 rounded-r-full bg-rail-accent',
+              'transition-[opacity,height] duration-[160ms] ease-entrance',
+              active ? 'h-[20px] opacity-100' : 'h-[6px] opacity-0',
             )}
           />
           <span className={cn('shrink-0', active ? 'text-rail-accent' : 'text-rail-muted group-hover:text-rail-ink')}>
@@ -167,13 +197,14 @@ export function AppRail({
                 </span>
               ) : null}
               {link.dot ? (
-                // The semantic warn and good are mixed for a light card and go
-                // muddy on Gray-900, so the dot brightens to hold against it.
+                // The page-level semantic tones are mixed to sit on white and
+                // go muddy on the rail's deep teal, so the dot takes the rail's
+                // own accent and the light end of the teal ramp instead.
                 <span
                   aria-hidden="true"
                   className={cn(
                     'h-1.5 w-1.5 shrink-0 rounded-full',
-                    link.dot === 'warn' ? 'bg-[#fbbf24]' : 'bg-[#34d399]/70',
+                    link.dot === 'warn' ? 'bg-rail-accent' : 'bg-teal-300/70',
                   )}
                 />
               ) : null}
@@ -187,8 +218,9 @@ export function AppRail({
   return (
     <aside
       className={cn(
-        'sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-rail-line bg-rail transition-[width] duration-[180ms] ease-out lg:flex',
-        collapsed ? 'w-[70px]' : 'w-[228px]',
+        'vt-rail sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-rail-line bg-rail lg:flex',
+        'transition-[width] duration-[180ms] ease-out',
+        collapsed ? 'w-[70px]' : 'w-[236px]',
       )}
       aria-label="Workspace navigation"
     >
@@ -215,7 +247,7 @@ export function AppRail({
         >
           <HelmMark size={24} tone="rail" />
           {!collapsed ? (
-            <span className="text-[15px] font-semibold tracking-[0.14em] text-rail-ink-strong">HELM</span>
+            <span className="font-display text-[21px] tracking-[0.06em] text-rail-ink-strong">HELM</span>
           ) : null}
         </Link>
       </div>

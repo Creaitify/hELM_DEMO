@@ -5,94 +5,146 @@
    ============================================================ */
 
 :root {
-  /* ---- Public dark world ---- */
-  --night-950: #070a12;
-  --night-900: #0b0e1a;
-  --night-800: #131829;
-  --night-700: #1d2438;
-  --night-line: rgba(255, 255, 255, 0.1);
-  --night-line-strong: rgba(255, 255, 255, 0.18);
-  --night-ink: #f2f4f8;
-  --night-muted: #a7aec0;
-  --night-faint: #6e7688;
+  /* ---- Public dark world ----
+     The landing page and sign-in used to be navy with a periwinkle accent —
+     a completely different product from the one behind the login. Somebody
+     could read the marketing site and then not recognise the app.
 
-  /* ---- Product light world ----
-     Monochrome paper, no tint in the greys at all. Every surface, line and
-     level of ink is a step on one neutral ramp, so the single warm accent is
-     the only colour in the room and never has to compete with a blue.
+     It is the same deep teal as the rail now, so the dark object a visitor
+     meets first is the dark object they keep working next to. Same accent,
+     same display face, same voice. */
+  --night-950: #08201f;
+  --night-900: #0e2b2d;
+  --night-800: #143739;
+  --night-700: #1e4a4b;
+  --night-line: rgba(255, 255, 255, 0.1);
+  --night-line-strong: rgba(255, 255, 255, 0.19);
+  --night-ink: #eff6f5;
+  --night-muted: #a4c0bd;
+  --night-faint: #6f918f;
+  /* The accent on the dark ground. Amber, the same colour that means
+     "attention" everywhere in the product — it was periwinkle, hardcoded in a
+     dozen components, and it belonged to no palette. */
+  --night-accent: #f2ad2e;
+  --night-accent-soft: rgba(242, 173, 46, 0.14);
+
+  /* ---- Product: paper, not parchment ----
+     Warm, but only just. The first pass took "warm editorial" literally and
+     put beige on every surface at once — canvas, rail, cards, chips — and a
+     room where everything is the accent has no accent at all. It read as a
+     colour wash rather than as stock.
+
+     So the warmth now lives almost entirely in the ink and the hairlines,
+     where it does its job without ever becoming the subject. The sheets
+     themselves are near-white: enough off-neutral that nothing looks like a
+     default #fff, not enough that you would call it beige.
+
+     Colour on this page belongs to two things only — teal for data, amber for
+     attention — and both need a quiet ground to read against.
 
      The public pages keep the original palette — see .pub-world below. */
-  --canvas: #eceef1;
+  --canvas: #f4f4f1;
   --surface: #ffffff;
-  --surface-subtle: #f9fafb;
-  --surface-sunk: #f3f4f6;
-  --line: #e5e7eb;
-  --line-strong: #d1d5db;
-  --ink-950: #111827;
-  --ink-700: #374151;
-  --ink-500: #6b7280;
-  --ink-400: #9ca3af;
+  --surface-subtle: #fafaf7;
+  --surface-sunk: #efefeb;
+  --line: #e5e4de;
+  --line-strong: #ceccc4;
+  --ink-950: #1a1a17;
+  --ink-700: #45443e;
+  --ink-500: #76746c;
+  --ink-400: #a4a29a;
 
   /* ---- Brand and action ----
      Primary is the darkest ink rather than a hue: a near-black control reads
-     as the serious action on a white card, and leaves the accent free to mean
+     as the serious action on a warm page, and leaves the accent free to mean
      one thing. Amber carries hover, focus and selection — the warmth arrives
      on contact, not at rest.
 
-     Amber is never a background for white text; at #f59e0b that pairing fails
-     contrast badly. Wherever it fills, the ink on top is --action-ink. */
-  --helm-50: #fffbeb;
-  --helm-100: #fef3c7;
-  --helm-500: #111827;
-  --helm-600: #111827;
-  --helm-700: #f59e0b;
-  --iris-500: #f59e0b;
-  --action-200: #fde68a;
-  --action-400: #f59e0b;
-  --action-ink: #111827;
+     Amber is never a background for white text; at #e0900c that pairing fails
+     contrast badly. Wherever it fills, the ink on top is --action-ink.
+     Where the accent has to carry text on paper it uses --accent-ink, which
+     is the same hue burnt down far enough to clear 4.5:1. */
+  --helm-50: #fdf8ee;
+  --helm-100: #f8ecd2;
+  --helm-500: #1f1b16;
+  --helm-600: #1f1b16;
+  --helm-700: #e0900c;
+  --iris-500: #e0900c;
+  --action-200: #f7e3b4;
+  --action-400: #e0900c;
+  --action-ink: #1f1b16;
+  --accent-ink: #96590a;
+
+  /* ---- The cool accent ----
+     Amber and teal are the two halves of one idea, and they do not overlap.
+
+     Amber is attention: hover, focus, selection, the thing that needs you. It
+     is always transient — it arrives on contact and leaves again.
+
+     Teal is measurement: the data itself. Every series, every bar, every
+     sparkline is drawn in it. It is always at rest.
+
+     Because the two never mean the same thing, a chart can be entirely teal
+     and the one amber mark on it still reads instantly as "this is the point".
+     That is the whole reason for a second accent — a single-accent palette has
+     to choose between colouring its data and colouring its attention, and
+     colouring both in amber is what made these charts read as decoration.
+
+     Deep enough to carry text on paper: --teal-600 clears 4.5:1 on --surface. */
+  --teal-800: #06393c;
+  --teal-700: #0a4f52;
+  --teal-600: #0f6b6d;
+  --teal-500: #178c8a;
+  --teal-300: #6bb3ad;
+  --teal-200: #a8d0cb;
+  --teal-soft: #e4efed;
+  --teal-line: #bcd8d4;
 
   /* ---- The rail ----
-     The one dark object in the product.
+     The one dark object, and it is deep teal rather than grey.
 
-     Monochrome asks for a single anchor, so the rail takes the primary
-     (Gray-900) as a ground rather than sitting white-on-white beside a white
-     canvas. Its own ramp is declared here rather than by overriding --surface,
-     because the popovers that open out of the rail are its children and must
-     stay on paper.
+     A neutral gray-900 sidebar is the most templated shape in this category.
+     A kraft one — the previous attempt — solved that by making the whole
+     product beige, which was worse. Deep teal is the way out of both: it is
+     unmistakably not the default, it is the same family as the colour every
+     chart is drawn in, so the rail and the data belong to one system, and it
+     gives the near-white canvas beside it something to be white against.
 
      Amber does exactly one job here: it marks where you are. Nothing else in
      the rail is allowed to be that colour. */
-  --rail-bg: #111827;
-  --rail-bg-raised: #1f2937;
-  --rail-line: rgba(255, 255, 255, 0.08);
-  --rail-line-strong: rgba(255, 255, 255, 0.16);
-  --rail-ink: #e5e7eb;
+  --rail-bg: #0e2b2d;
+  --rail-bg-raised: #17393b;
+  --rail-line: rgba(255, 255, 255, 0.09);
+  --rail-line-strong: rgba(255, 255, 255, 0.18);
+  --rail-ink: #cddedc;
   --rail-ink-strong: #ffffff;
-  --rail-muted: #9ca3af;
-  --rail-accent: #f59e0b;
-  --rail-accent-soft: rgba(245, 158, 11, 0.12);
+  --rail-muted: #8ba8a6;
+  --rail-accent: #f2ad2e;
+  --rail-accent-soft: rgba(242, 173, 46, 0.14);
 
   /* ---- Chips ----
-     A neutral chip needs a ground of its own. Against a white card the sunk
-     surface was close enough to white that the chip read as loose text rather
-     than an object, so it gets a genuine grey fill and a hairline a step
-     darker than the general line colour. */
-  --chip-neutral: #f3f4f6;
-  --chip-neutral-line: #e5e7eb;
+     A neutral chip needs a ground of its own. Against a warm page the sunk
+     surface is close enough to the sheet that the chip would read as loose
+     text rather than an object, so it gets a genuine fill and a hairline a
+     step darker than the general line colour. */
+  --chip-neutral: #f1f1ec;
+  --chip-neutral-line: #e0dfd7;
 
-  /* ---- Semantic ---- */
-  --good: #0a7f59;
-  --good-soft: #e7f3ee;
-  --warn: #a4620f;
-  --warn-soft: #faf1e3;
-  --bad: #c31f3c;
-  --bad-soft: #fbe9ed;
-  --info: #111827;
-  --info-soft: #f3f4f6;
+  /* ---- Semantic ----
+     Warmed to sit on paper. A clinical green or a pure blue on this stock
+     looks like it arrived from another design system. */
+  --good: #2f6b57;
+  --good-soft: #e6efeb;
+  --warn: #96590a;
+  --warn-soft: #f8eeda;
+  --bad: #9e2f38;
+  --bad-soft: #f7e6e4;
+  --info: #0f6b6d;
+  --info-soft: #e4efed;
   /* Act-today red. Warmer and brighter than --bad so the two never blur:
      bad marks a decision-grade finding, urgent marks a clock running out. */
-  --urgent: #c93318;
-  --urgent-soft: #fdece8;
+  --urgent: #b4401d;
+  --urgent-soft: #fbe8de;
 
   /* ---- Provider identity (marks and identity details only) ---- */
   --google: #4285f4;
@@ -103,18 +155,23 @@
 
   /* ---- Focus ---- */
   /* Focus is the accent's clearest job: the one moment colour means "here". */
-  --focus-ring: rgba(245, 158, 11, 0.55);
-  --focus-ring-dark: rgba(160, 184, 255, 0.55);
+  --focus-ring: rgba(224, 144, 12, 0.5);
+  --focus-ring-dark: rgba(242, 173, 46, 0.6);
 
   /* ---- Geometry ---- */
-  --rail-w: 220px;
+  --rail-w: 236px;
   --rail-w-collapsed: 70px;
   --scope-h: 62px;
   --marketing-header-h: 68px;
 
-  /* ---- Easing ---- */
+  /* ---- Easing ----
+     Standard and out are the workhorses. Entrance overshoots very slightly so
+     a panel arrives rather than stops; exit does not, because leaving should
+     never draw attention to itself. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-entrance: cubic-bezier(0.16, 1.02, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
   /* ---- Duration scale ---- */
   --t-press: 110ms;
@@ -122,10 +179,13 @@
   --t-popover: 210ms;
   --t-sheet: 280ms;
   --t-swap: 220ms;
+  --t-route: 260ms;
   --t-chart: 760ms;
 
-  /* ---- Type roles ---- */
-  --font-display: var(--font-sans);
+  /* ---- Type roles ----
+     The display face is a companion serif to the body sans, not a second
+     opinion. Headings are set in it; everything you operate stays sans. */
+  --font-display: var(--font-serif);
 }
 
 /* Legacy token aliases. Kept so any earlier stylesheet or component
@@ -149,36 +209,25 @@
    The landing page and sign-in are a different argument to a different
    reader, and they were signed off as they are. Rather than exempt them
    with a hundred overrides, they restore the original product tokens for
-   their own subtree — the monochrome ramp above stops at their edge.
+   their own subtree — the warm ramp above stops at their edge.
 
    These pages open no portalled overlay, so a subtree scope is complete
    here in a way it would not be inside the product.
    ============================================================ */
 .pub-world {
-  --canvas: #ecedf2;
-  --surface: #ffffff;
-  --surface-subtle: #f6f7fa;
-  --surface-sunk: #eef0f5;
-  --line: #e2e4ec;
-  --line-strong: #c6cad8;
-  --ink-950: #10131c;
-  --ink-700: #343b4b;
-  --ink-500: #656d80;
-  --ink-400: #8b92a3;
+  /* The neutral ramp is the product's own — a visitor and a user look at the
+     same paper. Only the accents are restated, because the public pages had
+     an indigo-and-peach pairing that no longer exists anywhere else. */
+  --helm-500: #0f6b6d;
+  --helm-600: #0a4f52;
+  --helm-700: #06393c;
+  --iris-500: #178c8a;
+  --action-200: #f8ecd2;
+  --action-400: #e0900c;
+  --action-ink: #1a1a17;
+  --accent-ink: #96590a;
 
-  --helm-50: #f1f3ff;
-  --helm-100: #dee4fb;
-  --helm-500: #2f43c9;
-  --helm-600: #22318f;
-  --helm-700: #1a2670;
-  --iris-500: #7c5bff;
-  --action-200: #ffddd0;
-  --action-400: #f7aa8e;
-  --action-ink: #10131c;
-
-  --chip-neutral: #e5e8ef;
-  --chip-neutral-line: #c9cfdd;
-  --info: #2f43c9;
-  --info-soft: #eff1fe;
-  --focus-ring: rgba(47, 67, 201, 0.40);
+  --info: #0f6b6d;
+  --info-soft: #e4efed;
+  --focus-ring: rgba(224, 144, 12, 0.5);
 }

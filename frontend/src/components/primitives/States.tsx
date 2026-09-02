@@ -152,9 +152,15 @@ export function PermissionState({
   );
 }
 
-/** Geometry-matched skeleton. Never a spinner where content will land. */
+/**
+ * Geometry-matched skeleton. Never a spinner where content will land.
+ *
+ * It sweeps rather than pulses. A block fading in and out in place reads as
+ * something broken; a warm sweep travelling in the reading direction reads as
+ * the page being set, and points at where the eye is about to go.
+ */
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded-control bg-surface-sunk', className)} />;
+  return <div className={cn('shimmer rounded-control', className)} />;
 }
 
 export function SectionHeading({

@@ -27,16 +27,34 @@ export async function opsRoutes(app: FastifyInstance) {
     return payload;
   };
 
+  /**
+   * Liveness, and nothing an attacker could use.
+   *
+   * This route is deliberately unauthenticated so a deployment can be probed
+   * before anyone signs in, which is exactly why it must not describe the
+   * deployment. It previously answered with the datastore's name and
+   * connection detail, the resolved capability set and the reasoning
+   * provider's health — a map of the infrastructure, free to anyone who
+   * curled the public domain. Whether the service is up is a fact about the
+   * service; how it is wired is not the caller's business.
+   *
+   * The full picture is still available to an operator at /api/ops/overview,
+   * and outside production it stays on this route as well: `npm run
+   * verify:agents` reads the graph and reasoning state from here, and a
+   * development machine is not a public surface.
+   */
   app.get('/api/health', async () => {
     const status = graphStatus();
+    const live = { ok: status.ok, version: 1, uptimeSeconds: Math.round(process.uptime()) };
+
+    if (env.isProduction) return live;
+
     return {
-      ok: true,
-      version: 1,
+      ...live,
       graph: status,
       capabilities: capabilities(),
       fleet: fleetMode(),
       reasoning: anthropicHealth(),
-      uptimeSeconds: Math.round(process.uptime()),
     };
   });
 

@@ -1,0 +1,6 @@
+# Screenshots and traces written by the Playwright MCP server during a session.
+.playwright-mcp/
+
+# Scratch output from local runs.
+tmp/
+output/

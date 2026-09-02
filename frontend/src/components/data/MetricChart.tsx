@@ -396,10 +396,10 @@ export function MetricChart({
 }
 
 export const SERIES_COLORS = {
-  primary: 'var(--helm-500)',
+  primary: 'var(--teal-600)',
   google: 'var(--google)',
   meta: 'var(--meta)',
-  iris: 'var(--iris-500)',
+  iris: 'var(--teal-500)',
   good: 'var(--good)',
   warn: 'var(--warn)',
   bad: 'var(--bad)',

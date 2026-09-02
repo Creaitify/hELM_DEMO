@@ -195,6 +195,50 @@ export function formatMetricDense(
  * Returns nothing when the evidence carries no series for that metric. A shape
  * invented to fill the slot would be the one dishonest mark on the card.
  */
+/**
+ * A short series for each figure the card shows, keyed by metric.
+ *
+ * The card used to take a single array and draw it beside whichever figure
+ * happened to be first. That put a line under CPA and left spend and view rate
+ * with nothing — and worse, it meant the line's meaning depended on the order
+ * of the strip rather than on what it was a series of.
+ *
+ * Each metric now looks for its own. Cost comes from the evidence the finding
+ * cites; spend comes from the campaign's own daily shape, which is already on
+ * the record and is a real measurement rather than a derivation. A metric with
+ * no series simply gets no line, which is the honest outcome — a sparkline
+ * drawn from the wrong numbers is worse than an empty space.
+ */
+export function findingTrends(
+  finding: Finding,
+  evidence: Evidence[],
+  campaigns: { id: string; dailySpend?: number[] }[] = [],
+): Partial<Record<MetricKey, number[]>> {
+  const trends: Partial<Record<MetricKey, number[]>> = {};
+
+  for (const id of finding.evidenceIds) {
+    const record = evidence.find((entry) => entry.id === id);
+    const series = record?.series;
+    if (!series || trends[series.metric]) continue;
+    const values = series.points
+      .map((point) => point.value)
+      .filter((value): value is number => value !== null);
+    if (values.length > 1) trends[series.metric] = values;
+  }
+
+  if (!trends.spend) {
+    // The campaign carrying the most of the finding's spend is the one whose
+    // shape the figure is describing.
+    const named = finding.affectedCampaignIds
+      .map((id) => campaigns.find((campaign) => campaign.id === id))
+      .filter((campaign): campaign is { id: string; dailySpend?: number[] } => Boolean(campaign));
+    const daily = named.map((campaign) => campaign.dailySpend).find((values) => values && values.length > 1);
+    if (daily) trends.spend = daily;
+  }
+
+  return trends;
+}
+
 export function findingTrend(finding: Finding, evidence: Evidence[]): number[] | undefined {
   const leading = finding.metricHighlights[0]?.key;
   const records = finding.evidenceIds

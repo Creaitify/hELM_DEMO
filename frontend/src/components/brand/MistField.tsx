@@ -28,8 +28,8 @@ export function MistField({
         className="absolute inset-0"
         style={{
           background: isDark
-            ? 'radial-gradient(ellipse 120% 90% at 18% 8%, #131829 0%, #0B0E1A 44%, #070A12 100%)'
-            : 'radial-gradient(ellipse 110% 90% at 22% 4%, #F4F8FF 0%, #EAF1FC 48%, #E5EDFA 100%)',
+            ? 'radial-gradient(ellipse 120% 90% at 18% 8%, #131829 0%, #0B0E1A 44%, #08201F 100%)'
+            : 'radial-gradient(ellipse 110% 90% at 22% 4%, #F4F8FF 0%, #EAF1FC 48%, #EFF6F5 100%)',
         }}
       />
 
@@ -38,8 +38,8 @@ export function MistField({
         className={cn('absolute -left-[18%] -top-[26%] h-[78%] w-[74%] rounded-full blur-[120px]', tone !== 'static' && 'anim-mist')}
         style={{
           background: isDark
-            ? 'radial-gradient(circle, rgba(124,91,255,.20) 0%, rgba(61,91,214,.11) 42%, transparent 72%)'
-            : 'radial-gradient(circle, rgba(124,91,255,.13) 0%, rgba(61,91,214,.09) 44%, transparent 74%)',
+            ? 'radial-gradient(circle, rgba(23,140,138,.20) 0%, rgba(15,107,109,.11) 42%, transparent 72%)'
+            : 'radial-gradient(circle, rgba(23,140,138,.13) 0%, rgba(15,107,109,.09) 44%, transparent 74%)',
         }}
       />
 
@@ -52,8 +52,8 @@ export function MistField({
         style={{
           animationDelay: '-14s',
           background: isDark
-            ? 'radial-gradient(circle, rgba(61,91,214,.20) 0%, transparent 70%)'
-            : 'radial-gradient(circle, rgba(61,91,214,.12) 0%, transparent 72%)',
+            ? 'radial-gradient(circle, rgba(15,107,109,.20) 0%, transparent 70%)'
+            : 'radial-gradient(circle, rgba(15,107,109,.12) 0%, transparent 72%)',
         }}
       />
 
@@ -75,7 +75,7 @@ export function MistField({
           className="grid-mesh absolute inset-0"
           style={
             {
-              '--mesh-color': isDark ? 'rgba(255,255,255,.055)' : 'rgba(61,91,214,.075)',
+              '--mesh-color': isDark ? 'rgba(255,255,255,.055)' : 'rgba(15,107,109,.075)',
               '--mesh-size': '56px',
             } as React.CSSProperties
           }
@@ -87,8 +87,8 @@ export function MistField({
         className="absolute inset-0"
         style={{
           background: isDark
-            ? 'linear-gradient(to bottom, rgba(7,10,18,0) 52%, rgba(7,10,18,.72) 100%)'
-            : 'linear-gradient(to bottom, rgba(229,237,250,0) 60%, rgba(229,237,250,.6) 100%)',
+            ? 'linear-gradient(to bottom, rgba(8,32,31,0) 52%, rgba(8,32,31,.72) 100%)'
+            : 'linear-gradient(to bottom, rgba(239,246,245,0) 60%, rgba(239,246,245,.6) 100%)',
         }}
       />
     </div>

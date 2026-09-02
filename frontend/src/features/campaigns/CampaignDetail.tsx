@@ -13,7 +13,7 @@ import { DeltaChip, StatusBadge } from '@/components/primitives/Status';
 import { EmptyState, SectionHeading } from '@/components/primitives/States';
 import { IconIntelligence, ProviderMark } from '@/components/icons';
 import { formatDelta, formatMoney, formatNumber, formatPercent } from '@/lib/format';
-import { deltaSemantic, findingTrend, formatMetric } from '@/lib/metrics';
+import { deltaSemantic, findingTrends, formatMetric } from '@/lib/metrics';
 import { routes } from '@/lib/routes';
 import { cn } from '@/lib/cn';
 
@@ -269,7 +269,7 @@ export function CampaignDetail({
                   accountNames={[
                     { id: campaign.accountId, name: campaign.accountName, provider: campaign.provider },
                   ]}
-                  trend={findingTrend(finding, evidence)}
+                  trends={findingTrends(finding, evidence, [campaign])}
                   onOpenEvidence={(id) => setOpenEvidenceId(id)}
                   investigateHref={
                     runIdByFinding[finding.id]

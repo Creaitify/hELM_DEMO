@@ -23,9 +23,9 @@ function money(currency: string, amount: number): string {
 export type DraftFinding = {
   title: string;
   observation: string;
-  kind: string;
-  severity: string;
-  confidence: string;
+  kind: 'observed' | 'calculated' | 'inferred';
+  severity: 'decision' | 'watch' | 'stable';
+  confidence: 'high' | 'medium' | 'low';
   confidenceNote: string;
   exposureLowMinorUnits: string | null;
   exposureHighMinorUnits: string | null;
@@ -40,13 +40,13 @@ export type DraftRecommendation = {
   rationale: string;
   assumptions: string[];
   risks: string[];
-  expectedDirection: string;
+  expectedDirection: 'increase' | 'decrease' | 'protect' | 'investigate';
   expectedRange: string;
-  capMinorUnits: string | null;
+  capMinorUnits?: string;
   horizon: string;
   stopConditions: string[];
-  effort: string;
-  urgency: string;
+  effort: 'low' | 'medium' | 'high';
+  urgency: 'today' | 'this_week' | 'this_month';
 };
 
 export type DraftDirection = {
@@ -159,7 +159,6 @@ export function scriptedRecommendations(pack: EvidencePack, findings: Finding[])
         ],
         expectedDirection: 'protect',
         expectedRange: 'Holds cost per purchase rather than promising an improvement.',
-        capMinorUnits: null,
         horizon: '14 days',
         stopConditions: [
           'Roll back if the replacement is more than 20% worse on cost per purchase after seven complete days.',

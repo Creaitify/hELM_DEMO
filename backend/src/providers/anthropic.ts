@@ -129,6 +129,15 @@ export type ReasonResult<T> = {
   tokensOut: number;
   model: string;
   error?: string;
+  /**
+   * Whether `value` is the caller's fallback rather than the model's answer.
+   *
+   * `live` says the API call happened; it does not say the answer was usable.
+   * A call that succeeds and returns well-formed JSON of the wrong shape is
+   * live and useless, and the two must not be confused: reporting a scripted
+   * finding under the model's name is the one failure a reader cannot detect.
+   */
+  usedFallback: boolean;
 };
 
 export type ReasonOptions<T> = {
@@ -140,7 +149,27 @@ export type ReasonOptions<T> = {
   maxTokens?: number;
   /** Shown to the model as the exact JSON shape to return. */
   shape?: string;
+  /**
+   * The shape the answer must actually satisfy, checked before it is returned.
+   *
+   * `shape` asks; this enforces. Without it every field arrives as `as T` and
+   * a renamed or renested key becomes a default value far downstream, where it
+   * reads as something the model decided rather than something it never said.
+   * A first answer that fails is sent back once with the specific validation
+   * errors, because a model told exactly what was wrong usually fixes it.
+   */
+  schema?: { safeParse: (input: unknown) => { success: boolean; data?: T; error?: unknown } };
 };
+
+/** The validation complaints, flattened into something worth re-prompting on. */
+function describeIssues(error: unknown): string {
+  const issues = (error as { issues?: { path?: (string | number)[]; message?: string }[] })?.issues;
+  if (!Array.isArray(issues)) return 'the answer did not match the required shape';
+  return issues
+    .slice(0, 12)
+    .map((issue) => `- ${(issue.path ?? []).join('.') || '(root)'}: ${issue.message ?? 'invalid'}`)
+    .join('\n');
+}
 
 /** Pulls the first balanced JSON object or array out of a model response. */
 function extractJson(text: string): unknown {
@@ -186,6 +215,7 @@ export async function reasonJson<T>(options: ReasonOptions<T>): Promise<ReasonRe
       tokensOut: 0,
       model: 'scripted',
       error: reasoningBlocked() ? health.detail : undefined,
+      usedFallback: true,
     };
   }
 
@@ -193,44 +223,110 @@ export async function reasonJson<T>(options: ReasonOptions<T>): Promise<ReasonRe
     ? `${options.prompt}\n\nReturn only JSON matching this shape, with no commentary:\n${options.shape}`
     : `${options.prompt}\n\nReturn only JSON, with no commentary.`;
 
-  try {
-    const response = await sdk.messages.create({
-      model,
-      max_tokens: options.maxTokens ?? env.anthropic.maxTokens,
-      system: options.system,
-      messages: [{ role: 'user', content: instruction }],
-    });
+  const messages: { role: 'user' | 'assistant'; content: string }[] = [
+    { role: 'user', content: instruction },
+  ];
 
-    const text = response.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .join('\n')
-      .trim();
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let lastError = 'The model did not return usable JSON.';
 
-    // A call that worked is the best evidence there is that the key is good,
-    // so a run recovers the health a transient failure took away.
-    health = { state: 'live', detail: `Anthropic reachable — ${model}` };
+  // Two attempts at most: the answer, and one correction naming what was wrong
+  // with it. A third would be guessing rather than correcting.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await sdk.messages.create({
+        model,
+        max_tokens: options.maxTokens ?? env.anthropic.maxTokens,
+        system: options.system,
+        messages,
+      });
 
-    return {
-      value: extractJson(text) as T,
-      live: true,
-      tokensIn: response.usage.input_tokens,
-      tokensOut: response.usage.output_tokens,
-      model,
-    };
-  } catch (error) {
-    // An unparseable body is the model's answer being unusable, not the
-    // connection being unwell, and must not mark the API unhealthy.
-    if (error instanceof Anthropic.APIError) health = classify(error);
+      const text = response.content
+        .map((block) => (block.type === 'text' ? block.text : ''))
+        .join('\n')
+        .trim();
 
-    return {
-      value: options.fallback,
-      live: false,
-      tokensIn: 0,
-      tokensOut: 0,
-      model,
-      error: error instanceof Anthropic.APIError ? health.detail : 'The model did not return usable JSON.',
-    };
+      tokensIn += response.usage.input_tokens;
+      tokensOut += response.usage.output_tokens;
+
+      // A call that worked is the best evidence there is that the key is good,
+      // so a run recovers the health a transient failure took away.
+      health = { state: 'live', detail: `Anthropic reachable — ${model}` };
+
+      // A truncated answer is not a short answer. Its JSON is cut mid-structure,
+      // so whatever survives parsing is a fragment presented as the whole.
+      if (response.stop_reason === 'max_tokens') {
+        lastError = `The model was cut off at ${options.maxTokens ?? env.anthropic.maxTokens} tokens.`;
+        messages.push(
+          { role: 'assistant', content: text.slice(0, 2000) },
+          {
+            role: 'user',
+            content: `That answer was cut off before it finished. Return the same result more concisely so it fits, as complete JSON.`,
+          },
+        );
+        continue;
+      }
+
+      const parsed = extractJson(text);
+
+      if (!options.schema) {
+        return { value: parsed as T, live: true, tokensIn, tokensOut, model, usedFallback: false };
+      }
+
+      const checked = options.schema.safeParse(parsed);
+      if (checked.success) {
+        return {
+          value: checked.data as T,
+          live: true,
+          tokensIn,
+          tokensOut,
+          model,
+          usedFallback: false,
+        };
+      }
+
+      lastError = `The model's answer did not match the required shape.`;
+      messages.push(
+        { role: 'assistant', content: text.slice(0, 4000) },
+        {
+          role: 'user',
+          content: `That did not match the required shape:\n${describeIssues(checked.error)}\n\nReturn the corrected JSON only.`,
+        },
+      );
+    } catch (error) {
+      // An unparseable body is the model's answer being unusable, not the
+      // connection being unwell, and must not mark the API unhealthy.
+      if (error instanceof Anthropic.APIError) {
+        health = classify(error);
+        return {
+          value: options.fallback,
+          live: false,
+          tokensIn,
+          tokensOut,
+          model,
+          error: health.detail,
+          usedFallback: true,
+        };
+      }
+
+      lastError = 'The model did not return usable JSON.';
+      messages.push({
+        role: 'user',
+        content: 'That was not valid JSON. Return only the JSON object, with no commentary.',
+      });
+    }
   }
+
+  return {
+    value: options.fallback,
+    live: true,
+    tokensIn,
+    tokensOut,
+    model,
+    error: lastError,
+    usedFallback: true,
+  };
 }
 
 export async function reasonText(options: {
@@ -243,7 +339,7 @@ export async function reasonText(options: {
   const model = options.model ?? env.anthropic.model;
   const sdk = anthropic();
   if (!sdk || reasoningBlocked()) {
-    return { value: options.fallback, live: false, tokensIn: 0, tokensOut: 0, model: 'scripted' };
+    return { value: options.fallback, live: false, tokensIn: 0, tokensOut: 0, model: 'scripted', usedFallback: true };
   }
   try {
     const response = await sdk.messages.create({
@@ -262,6 +358,7 @@ export async function reasonText(options: {
       tokensIn: response.usage.input_tokens,
       tokensOut: response.usage.output_tokens,
       model,
+      usedFallback: !text,
     };
   } catch (error) {
     return {
@@ -271,6 +368,7 @@ export async function reasonText(options: {
       tokensOut: 0,
       model,
       error: error instanceof Error ? error.message : String(error),
+      usedFallback: true,
     };
   }
 }

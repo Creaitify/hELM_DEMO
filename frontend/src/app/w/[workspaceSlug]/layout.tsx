@@ -45,18 +45,22 @@ export default async function WorkspaceLayout({
     redirect(routes.signin(routes.briefing(workspaceSlug)));
   }
 
-  const live = apiReachable ? await getWorkspace(workspaceSlug) : null;
-
   /*
-   * What is actually running, asked of the fleet.
+   * The workspace and what the fleet is doing, fetched together.
    *
-   * The banner used to come from a fixture whose stage was "analyzing" and
-   * always would be, so every page in the product carried a permanent claim
+   * Neither needs the other, and this layout wraps all ten workspace routes,
+   * so awaiting them in sequence charged every screen in the product the sum
+   * of two round trips to learn two unrelated things.
+   *
+   * On the fleet half: the banner used to come from a fixture whose stage was
+   * "analyzing" and always would be, so every page carried a permanent claim
    * that an investigation was in progress. The fleet knows what it is doing;
    * when it is doing nothing, the banner is absent, which is the honest state
    * and now the usual one.
    */
-  const fleet = apiReachable ? await getFleet(workspaceSlug) : null;
+  const [live, fleet] = apiReachable
+    ? await Promise.all([getWorkspace(workspaceSlug), getFleet(workspaceSlug)])
+    : [null, null];
   const running =
     fleet?.ok && fleet.data.activeRunId
       ? {
