@@ -44,8 +44,8 @@
 
      The public pages keep the original palette — see .pub-world below. */
   --canvas: #f4f4f1;
-  --surface: #ffffff;
-  --surface-subtle: #fafaf7;
+  --surface: #faf9f6;
+  --surface-subtle: #f7f6f1;
   --surface-sunk: #efefeb;
   --line: #e5e4de;
   --line-strong: #ceccc4;
