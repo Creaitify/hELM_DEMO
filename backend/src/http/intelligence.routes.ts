@@ -14,7 +14,6 @@ import {
   startRun,
   type ResumeInput,
 } from '../agents/orchestrator.js';
-import { AGENTS, AGENT_ORDER, poweringTheFleet } from '../agents/registry.js';
 import type { Decision, Recommendation } from '../domain/types.js';
 import {
   invalid,

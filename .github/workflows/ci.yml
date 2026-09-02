@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only checkout; these jobs only build and lint, they never publish anything.
+permissions:
+  contents: read
+
+# A new push or PR update supersedes the in-flight run for the same ref —
+# unlike deploy, a half-finished CI run costs nothing to cancel and restart.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      # The server build. next.config.mjs branches on HELM_STATIC_EXPORT, so this
+      # exercises the /api proxy and basePath handling that npm run dev relies on
+      # — the static export build alone missed a config regression that broke
+      # both, so both builds are checked here.
+      - run: npm run build
+
+      - name: Build the static export
+        # next.config.mjs only exports when this is set; without it the build
+        # is the server build, which writes .next and no out/ at all.
+        env:
+          HELM_STATIC_EXPORT: 'true'
+          # The project Pages site lives at /<repo>, so assets need that prefix.
+          HELM_BASE_PATH: '/hELM_DEMO'
+        run: npm run build
+
+      - name: Verify the static export produced output
+        run: test -f out/index.html
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm run build

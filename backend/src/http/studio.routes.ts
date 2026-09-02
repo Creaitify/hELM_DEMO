@@ -7,7 +7,7 @@ import { generateImage, imageProviderName, type GenerateImageInput } from '../pr
 import { reasonJson } from '../providers/anthropic.js';
 import { AGENTS } from '../agents/registry.js';
 import { readStudioAsset, storeStudioAsset } from '../studio/assets.js';
-import { invalid, notFound, requireCsrf, requireWorkspace, sendError } from './context.js';
+import { invalid, requireCsrf, requireWorkspace, sendError } from './context.js';
 import { ADVERTISER, CREATIVE_LINE, PRODUCT } from '../sample/campaigns.js';
 import { resolveBrandKit } from '../domain/brand.js';
 

@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts --max-warnings=0",
     "seed": "tsx src/seed/run-seed.ts",
     "verify:agents": "node scripts/verify-agents.mjs",
     "probe:pdf": "tsx scripts/probe-pdf.ts"
@@ -28,6 +29,9 @@
   },
   "devDependencies": {
     "@types/node": "22.10.5",
+    "@typescript-eslint/eslint-plugin": "8.18.2",
+    "@typescript-eslint/parser": "8.18.2",
+    "eslint": "8.57.1",
     "pino-pretty": "^13.0.0",
     "tsx": "4.19.2",
     "typescript": "5.7.3"

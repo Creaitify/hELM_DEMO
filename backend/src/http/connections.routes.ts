@@ -138,13 +138,6 @@ function providerReadsAreMocked(provider: ProviderKey): boolean {
   return false;
 }
 
-/** The URL path this API serves for a provider's OAuth return. */
-function callbackPath(provider: ProviderKey): string {
-  if (provider === 'google_ads') return env.google.adsRedirectPath;
-  if (provider === 'meta_ads') return env.meta.redirectPath;
-  return '/api/integrations/unknown/callback';
-}
-
 function connectionId(provider: ProviderKey): string {
   return provider === 'google_ads' ? 'con_google' : provider === 'meta_ads' ? 'con_meta' : 'con_upload';
 }
@@ -274,7 +267,7 @@ export async function connectionRoutes(app: FastifyInstance) {
     '/api/workspaces/:slug/connections/:provider/accounts',
     async (request, reply) => {
       try {
-        const context = await requireWorkspace(request, request.params.slug, 'connections.manage');
+        await requireWorkspace(request, request.params.slug, 'connections.manage');
         const provider = request.params.provider;
         if (provider !== 'google_ads' && provider !== 'meta_ads') throw invalid('Unknown provider.');
 

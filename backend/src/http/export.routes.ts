@@ -46,14 +46,6 @@ export function safeName(value: string): string {
   );
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function money(value: { currency: string; minorUnits: string } | undefined): string {
   if (!value) return '—';
   const major = Number(value.minorUnits) / 100;
@@ -150,63 +142,6 @@ export function memoMarkdown(input: MemoInput): string {
     '_Produced by HELM. Recommendations are proposals: nothing in this report has been applied to an ad account._',
   );
   return lines.join('\n');
-}
-
-function memoHtml(input: MemoInput): string {
-  const markdown = memoMarkdown(input);
-
-  // A deliberately small renderer: headings, bold, list items and paragraphs
-  // are all this document uses, and a full Markdown engine would be a
-  // dependency carrying a much larger sanitising problem.
-  const body = markdown
-    .split('\n')
-    .map((line) => {
-      if (line.startsWith('### ')) return `<h3>${inline(line.slice(4))}</h3>`;
-      if (line.startsWith('## ')) return `<h2>${inline(line.slice(3))}</h2>`;
-      if (line.startsWith('# ')) return `<h1>${inline(line.slice(2))}</h1>`;
-      if (line.startsWith('- ')) return `<li>${inline(line.slice(2))}</li>`;
-      if (line.trim() === '---') return '<hr />';
-      if (line.trim() === '') return '';
-      return `<p>${inline(line)}</p>`;
-    })
-    .join('\n')
-    .replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, (match) => `<ul>\n${match}</ul>\n`);
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(input.run.title)} — HELM</title>
-<style>
-  :root { color-scheme: light; }
-  body {
-    margin: 0 auto; padding: 56px 28px 96px; max-width: 46rem;
-    font: 16px/1.65 "Instrument Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-    color: #0A1330; background: #FBFCFE;
-  }
-  h1 { font-size: 30px; line-height: 1.15; letter-spacing: -0.028em; margin: 0 0 24px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: #5A6C90;
-       margin: 44px 0 12px; font-weight: 600; }
-  h3 { font-size: 19px; line-height: 1.3; letter-spacing: -0.015em; margin: 28px 0 8px; }
-  p { margin: 0 0 12px; }
-  ul { margin: 0 0 18px; padding-left: 20px; }
-  li { margin: 0 0 5px; }
-  strong { font-weight: 600; }
-  hr { border: 0; border-top: 1px solid #DDE3EE; margin: 40px 0 20px; }
-  em { color: #5A6C90; font-style: normal; font-size: 13.5px; }
-</style>
-</head>
-<body>
-${body}
-</body>
-</html>`;
-}
-
-function inline(value: string): string {
-  return escapeHtml(value)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/_(.+?)_/g, '<em>$1</em>');
 }
 
 function findingsCsv(findings: Finding[], recommendations: Recommendation[]): string {
