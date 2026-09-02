@@ -4,3 +4,6 @@
 # Scratch output from local runs.
 tmp/
 output/
+
+# Binary pulled down by `npx cloudflared`; not part of the project.
+cloudflared.exe

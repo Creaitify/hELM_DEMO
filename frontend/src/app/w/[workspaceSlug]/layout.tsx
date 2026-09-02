@@ -29,6 +29,18 @@ import {
  * sample workspace so the product is reviewable offline — the routes inside it
  * say so rather than implying the data is live.
  */
+/**
+ * Which pages exist in a static export.
+ *
+ * `output: 'export'` has no server, so every dynamic route has to be named at
+ * build time or the build fails. The list comes from the sample fixtures —
+ * which is also the only data the exported site has, since there is no API
+ * behind it to ask for a real one.
+ */
+export function generateStaticParams() {
+  return sampleWorkspaces.map((workspace) => ({ workspaceSlug: workspace.slug }));
+}
+
 export default async function WorkspaceLayout({
   children,
   params,

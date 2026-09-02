@@ -18,13 +18,13 @@ export const metadata: Metadata = { title: 'Settings' };
 
 export default async function SettingsPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ workspaceSlug: string }>;
-  searchParams: Promise<{ tab?: string }>;
 }) {
   const { workspaceSlug } = await params;
-  const { tab } = await searchParams;
+  // The tab is read from the URL by SettingsWorkspace itself: a static export
+  // has no server to resolve searchParams on.
+  const tab = undefined;
 
   const [workspaceRead, membersRead, auditRead, session, brandRead] = await Promise.all([
     getWorkspace(workspaceSlug),

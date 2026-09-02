@@ -21,16 +21,12 @@ export const metadata: Metadata = { title: 'Assets' };
 
 export default async function LibraryPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ workspaceSlug: string }>;
-  searchParams: Promise<{ tab?: string }>;
 }) {
   const { workspaceSlug } = await params;
-  // The tab is still read so an old bookmark to ?tab=reports lands somewhere
-  // sensible rather than on an empty shelf.
-  const { tab } = await searchParams;
-  if (tab === 'reports') redirect(routes.documents(workspaceSlug));
+  // The ?tab=reports bookmark redirect needed a server to run on. Documents
+  // is a rail destination of its own, so the link is one click away.
   if (!isPopulated(workspaceSlug)) {
     return <WorkspacePlaceholder slug={workspaceSlug} title="Assets" section="library" />;
   }

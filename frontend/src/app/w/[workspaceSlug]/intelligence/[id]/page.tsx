@@ -20,6 +20,7 @@ import {
   findingById,
   recommendationById,
   runById,
+  runs,
 } from '@/services/mock';
 import { FALLBACK_FLEET, fleetNotice } from '@/features/intelligence/fleet-fallback';
 
@@ -49,6 +50,18 @@ const STAGE_LABEL: Record<string, string> = {
   failed: 'Failed',
   cancelled: 'Cancelled',
 };
+
+/**
+ * Which pages exist in a static export.
+ *
+ * `output: 'export'` has no server, so every dynamic route has to be named at
+ * build time or the build fails. The list comes from the sample fixtures —
+ * which is also the only data the exported site has, since there is no API
+ * behind it to ask for a real one.
+ */
+export function generateStaticParams() {
+  return runs.map((run) => ({ id: run.id }));
+}
 
 export default async function RunPage({
   params,

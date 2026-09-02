@@ -31,9 +31,10 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-signin/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-signin/types/**/*.ts"
+    ".next-review/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

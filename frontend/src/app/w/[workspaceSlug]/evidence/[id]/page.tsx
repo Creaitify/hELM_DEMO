@@ -14,6 +14,7 @@ import { getEvidenceRecord } from '@/services/http/queries';
 import {
   accounts as sampleAccounts,
   campaignById,
+  evidence,
   evidenceById,
   findings as sampleFindings,
   runs as sampleRuns,
@@ -65,6 +66,18 @@ export async function generateMetadata({
   const { id } = await params;
   const evidence = evidenceById(id);
   return { title: evidence ? evidence.title : 'Evidence record' };
+}
+
+/**
+ * Which pages exist in a static export.
+ *
+ * `output: 'export'` has no server, so every dynamic route has to be named at
+ * build time or the build fails. The list comes from the sample fixtures —
+ * which is also the only data the exported site has, since there is no API
+ * behind it to ask for a real one.
+ */
+export function generateStaticParams() {
+  return evidence.map((entry) => ({ id: entry.id }));
 }
 
 export default async function EvidencePage({

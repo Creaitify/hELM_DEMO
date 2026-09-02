@@ -15,6 +15,7 @@ import {
   WINDOW_DATES,
   WINDOW_END,
   WINDOW_START,
+  blendedCampaigns,
   campaignById,
   creativesForCampaign,
   decisionStorySeries,
@@ -32,6 +33,18 @@ export async function generateMetadata({
   const { id } = await params;
   const campaign = campaignById(id);
   return { title: campaign ? campaign.name : 'Campaign not found' };
+}
+
+/**
+ * Which pages exist in a static export.
+ *
+ * `output: 'export'` has no server, so every dynamic route has to be named at
+ * build time or the build fails. The list comes from the sample fixtures —
+ * which is also the only data the exported site has, since there is no API
+ * behind it to ask for a real one.
+ */
+export function generateStaticParams() {
+  return blendedCampaigns.map((campaign) => ({ id: campaign.id }));
 }
 
 export default async function CampaignDetailPage({

@@ -18,13 +18,13 @@ export const metadata: Metadata = { title: 'Connections' };
 
 export default async function ConnectionsPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ workspaceSlug: string }>;
-  searchParams: Promise<{ connection?: string; status?: string }>;
 }) {
   const { workspaceSlug } = await params;
-  const { connection, status } = await searchParams;
+  // The OAuth callback params have no meaning in a static export.
+  const connection = undefined;
+  const status = undefined;
 
   const live = await getConnections(workspaceSlug);
   const offline = fleetNotice(live.ok, live.ok ? undefined : live.error);

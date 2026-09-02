@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CampaignSummary, IntelligenceRun } from '@/contracts';
 import { Checkbox, Disclosure } from '@/components/primitives/Controls';
 import { StatusBadge } from '@/components/primitives/Status';
@@ -75,6 +75,13 @@ export function IntelligenceWorkspace({
 }) {
   const router = useRouter();
   const [intent, setIntent] = useState<string>(initialIntent ?? 'diagnose');
+
+  /* The intent, from the URL — see SettingsWorkspace for why it is an effect. */
+  useEffect(() => {
+    if (initialIntent) return;
+    const fromUrl = new URLSearchParams(window.location.search).get('intent');
+    if (fromUrl) setIntent(fromUrl);
+  }, [initialIntent]);
   const [question, setQuestion] = useState('');
   const [selected, setSelected] = useState<string[]>(['cmp_m_broad_04', 'cmp_g_high_intent']);
   const [attachBrand, setAttachBrand] = useState(true);

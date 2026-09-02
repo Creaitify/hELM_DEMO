@@ -16,12 +16,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-export default async function SignInPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ returnTo?: string; error?: string }>;
-}) {
-  const params = await searchParams;
+export default async function SignInPage() {
+  // No server to read ?returnTo= or ?error= from in a static export.
+  const params: { returnTo?: string; error?: string } = {};
   const returnTo = safeReturnTo(params.returnTo, routes.briefing(WORKSPACE_SLUG));
 
   // Whether Google is live is a server-rendered fact, not a client probe, so

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AuditEntry, BrandKit, Connection, Member, Role, UserPreference, Workspace } from '@/contracts';
 import { Button } from '@/components/primitives/Button';
 import { Select, Tabs, TextField } from '@/components/primitives/Controls';
@@ -60,6 +60,23 @@ export function SettingsWorkspace({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState(initialTab ?? 'workspace');
+  /*
+   * The tab, from the URL.
+   *
+   * A static export has no server to read `searchParams` on, so the page above
+   * cannot hand this down any more. Reading it here keeps ?tab= deep links
+   * working — the rail's Team and Activity rows depend on them.
+   *
+   * Synced in an effect rather than in initial state on purpose: computing it
+   * during the first client render would disagree with the HTML the export
+   * generated, which is a hydration mismatch. One frame on the default, then
+   * the URL wins.
+   */
+  useEffect(() => {
+    if (initialTab) return;
+    const fromUrl = new URLSearchParams(window.location.search).get('tab');
+    if (fromUrl) setTab(fromUrl);
+  }, [initialTab]);
   const [name, setName] = useState(workspace.name);
   const [prefs, setPrefs] = useState(preferences);
   const [saved, setSaved] = useState<string | null>(null);

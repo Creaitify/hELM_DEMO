@@ -14,17 +14,16 @@ export const metadata: Metadata = { title: 'Agent Fleet' };
 
 export default async function IntelligencePage({
   params,
-  searchParams,
 }: {
   params: Promise<{ workspaceSlug: string }>;
-  searchParams: Promise<{ intent?: string }>;
 }) {
   const { workspaceSlug } = await params;
   if (!isPopulated(workspaceSlug)) {
     return <WorkspacePlaceholder slug={workspaceSlug} title="Agent Fleet" section="intelligence" />;
   }
 
-  const { intent } = await searchParams;
+  // Read from the URL by IntelligenceWorkspace; no server here to do it.
+  const intent = undefined;
   const live = await getIntelligence(workspaceSlug);
 
   const runs = live.ok ? live.data.runs : sampleRuns;
