@@ -1,11 +1,9 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
 import { PageShell } from '@/components/shell/AppShell';
 import { InlineNotice } from '@/components/primitives/States';
 import { WorkspacePlaceholder, isPopulated } from '@/features/briefing/WorkspacePlaceholder';
 import { LibraryWorkspace } from '@/features/library/LibraryWorkspace';
 import { fleetNotice } from '@/features/intelligence/fleet-fallback';
-import { routes } from '@/lib/routes';
 import { getLibrary } from '@/services/http/queries';
 import { NOW_ISO, artifacts as sampleArtifacts } from '@/services/mock';
 

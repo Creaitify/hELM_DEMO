@@ -36,7 +36,12 @@ jobs:
       - run: npm ci
 
       - name: Build the static export
-        # next.config.mjs sets output:'export', so this writes frontend/out.
+        # next.config.mjs only exports when this is set; without it the build
+        # is the server build, which writes .next and no out/ at all.
+        env:
+          HELM_STATIC_EXPORT: 'true'
+          # The project Pages site lives at /<repo>, so assets need that prefix.
+          HELM_BASE_PATH: '/hELM_DEMO'
         run: npm run build
 
       - name: Disable Jekyll
