@@ -20,6 +20,10 @@ concurrency:
 
 jobs:
   build:
+    # The site lives at Creaitify.github.io/hELM_DEMO, so only that repository
+    # has Pages enabled. The same code is pushed to helm-final, where this job
+    # would build fine and then fail at configure-pages for want of a site.
+    if: github.repository == 'Creaitify/hELM_DEMO'
     runs-on: ubuntu-latest
     defaults:
       run:
