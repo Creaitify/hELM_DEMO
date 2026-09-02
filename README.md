@@ -164,3 +164,18 @@ frontend/src/
   contracts/     domain types — features consume these, never raw responses
   services/http/ typed reads, one function per screen
 ```
+
+## Deployment
+
+This project is deployed on multiple platforms:
+
+| Platform | URL |
+|----------|-----|
+| GitHub Pages | https://Creaitify.github.io/hELM_DEMO/ |
+| Vercel | https://helm-demo-beta.vercel.app/ |
+
+### GitHub Pages
+Automatically deployed via GitHub Actions when you push to `main`.
+
+### Vercel
+Connected to the repository for automatic deployments.
