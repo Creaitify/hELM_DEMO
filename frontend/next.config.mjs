@@ -9,6 +9,9 @@
 const API_ORIGIN = process.env.HELM_API_ORIGIN ?? 'http://localhost:8100';
 
 const nextConfig = {
+  output: 'export',
+  basePath: '/hELM_DEMO',
+  assetPrefix: '/hELM_DEMO/',
   reactStrictMode: true,
   /*
    * Where the build output goes.
