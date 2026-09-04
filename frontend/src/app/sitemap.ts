@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/site';
 
 /**
  * Static export has no server to generate this per request, so it is emitted
@@ -6,7 +7,6 @@ import type { MetadataRoute } from 'next';
  */
 export const dynamic = 'force-static';
 
-const SITE_URL = 'https://helm.example';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

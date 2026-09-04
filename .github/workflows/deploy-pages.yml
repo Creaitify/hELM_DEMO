@@ -46,6 +46,9 @@ jobs:
           HELM_STATIC_EXPORT: 'true'
           # The project Pages site lives at /<repo>, so assets need that prefix.
           HELM_BASE_PATH: '/hELM_DEMO'
+          # Canonical links, Open Graph tags and the sitemap are absolute and
+          # baked in here; without this they ship a placeholder domain.
+          HELM_SITE_URL: 'https://${{ github.repository_owner }}.github.io/hELM_DEMO'
         run: npm run build
 
       - name: Disable Jekyll

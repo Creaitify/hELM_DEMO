@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/shell/AppShell';
-import { ErrorState } from '@/components/primitives/States';
+import { InlineNotice } from '@/components/primitives/States';
 import { ImageStudio } from '@/features/studio/ImageStudio';
 import { IconChevronLeft } from '@/components/icons';
 import { routes } from '@/lib/routes';
 import { getBriefing, getStudio } from '@/services/http/queries';
-import { NOW_ISO } from '@/services/mock';
+import { fleetNotice } from '@/features/intelligence/fleet-fallback';
+import { NOW_ISO, sampleStudioResponse } from '@/services/mock';
 
 export const metadata: Metadata = { title: 'Image studio' };
 
@@ -32,6 +33,8 @@ export default async function StudioPage({
     getStudio(workspaceSlug),
     getBriefing(workspaceSlug),
   ]);
+  const data = studio.ok ? studio.data : sampleStudioResponse;
+  const offline = fleetNotice(studio.ok, studio.ok ? undefined : studio.error);
 
   return (
     <PageShell
@@ -40,9 +43,7 @@ export default async function StudioPage({
       title="Image studio"
       context={
         <p className="mono text-[11.5px] text-ink-400">
-          {studio.ok
-            ? `${studio.data.director.name} · ${studio.data.provider.label}`
-            : 'The studio needs the HELM API'}
+          {`${data.director.name} · ${data.provider.label}`}
         </p>
       }
       actions={
@@ -55,27 +56,18 @@ export default async function StudioPage({
         </Link>
       }
     >
-      {studio.ok ? (
-        <ImageStudio
-          workspaceSlug={workspaceSlug}
-          studio={studio.data}
-          overview={briefing.ok ? briefing.data : null}
-          nowIso={NOW_ISO}
-        />
-      ) : (
-        <ErrorState
-          title="The image studio needs the HELM API"
-          description={studio.error.message}
-          onRetry={
-            <Link
-              href={routes.library(workspaceSlug)}
-              className="text-[13.5px] text-helm-600 hover:underline"
-            >
-              Back to the library
-            </Link>
-          }
-        />
-      )}
+      {offline ? (
+        <InlineNotice tone="warn" title={offline.title} className="mb-6">
+          {offline.body}
+        </InlineNotice>
+      ) : null}
+
+      <ImageStudio
+        workspaceSlug={workspaceSlug}
+        studio={data}
+        overview={briefing.ok ? briefing.data : null}
+        nowIso={NOW_ISO}
+      />
     </PageShell>
   );
 }

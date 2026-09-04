@@ -11,6 +11,8 @@ export * from './campaigns';
 export * from './scoreline';
 export * from './intelligence';
 export * from './library';
+export * from './documents';
+export * from './studio';
 export * from './public-content';
 
 /*

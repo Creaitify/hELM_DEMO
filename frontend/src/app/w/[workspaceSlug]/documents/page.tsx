@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { PageShell } from '@/components/shell/AppShell';
-import { ErrorState } from '@/components/primitives/States';
+import { InlineNotice } from '@/components/primitives/States';
 import { DocumentShelf } from '@/features/documents/DocumentShelf';
-import { routes } from '@/lib/routes';
+import { fleetNotice } from '@/features/intelligence/fleet-fallback';
 import { getDocuments } from '@/services/http/queries';
+import { sampleDocumentsResponse } from '@/services/mock';
 
 export const metadata: Metadata = { title: 'Documents' };
 
@@ -22,35 +22,28 @@ export default async function DocumentsPage({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  const documents = await getDocuments(workspaceSlug);
+  const live = await getDocuments(workspaceSlug);
+  // Every other surface falls back to the sample workspace rather than
+  // dead-ending; the shelf does too, and says which one it is showing.
+  const data = live.ok ? live.data : sampleDocumentsResponse;
+  const offline = fleetNotice(live.ok, live.ok ? undefined : live.error);
 
   return (
     <PageShell
       title="Documents"
       context={
         <p className="mono text-[12px] text-ink-400">
-          {documents.ok
-            ? `${documents.data.documents.length} written · ${documents.data.sources.length} investigations to write up`
-            : 'Documents need the HELM API'}
+          {`${data.documents.length} written · ${data.sources.length} investigations to write up`}
         </p>
       }
     >
-      {documents.ok ? (
-        <DocumentShelf workspaceSlug={workspaceSlug} data={documents.data} />
-      ) : (
-        <ErrorState
-          title="Documents need the HELM API"
-          description={documents.error.message}
-          onRetry={
-            <Link
-              href={routes.briefing(workspaceSlug)}
-              className="text-[13.5px] text-helm-600 hover:underline"
-            >
-              Back to the briefing
-            </Link>
-          }
-        />
-      )}
+      {offline ? (
+        <InlineNotice tone="warn" title={offline.title} className="mb-6">
+          {offline.body}
+        </InlineNotice>
+      ) : null}
+
+      <DocumentShelf workspaceSlug={workspaceSlug} data={data} />
     </PageShell>
   );
 }

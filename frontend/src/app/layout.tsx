@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Mono, Instrument_Sans, Instrument_Serif } from 'next/font/google';
 import './globals.css';
+import { SITE_URL } from '@/lib/site';
 
 const sans = Instrument_Sans({
   subsets: ['latin'],
@@ -33,7 +34,6 @@ const mono = IBM_Plex_Mono({
   weight: ['400', '500', '600'],
 });
 
-const SITE_URL = 'https://helm.example';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
